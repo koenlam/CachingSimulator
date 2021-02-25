@@ -1,3 +1,4 @@
+import random
 import numpy as np
 from simulator import Timer
 
@@ -49,7 +50,29 @@ def test_tolist():
     trace.tolist()
     timer.toc()
 
-test_np_array_speed()
-test_list_speed()
-test_tolist()
-test_np2list_speed()
+
+
+def test_np_argmin():
+    t = np.ones(10).tolist() + np.arange(2, 10000000).tolist()
+    random.shuffle(t)
+    timer = Timer()
+
+    print("Numpy")
+    timer.tic()
+    np_min_idx = np.argmin(t)
+    print(np_min_idx)
+    timer.toc()
+
+    print("List")
+    timer.tic()
+    list_min = min(t)
+    list_min_idx = [i for i, el in enumerate(t) if el == list_min]
+    print(list_min_idx)
+    timer.toc()
+    
+
+# test_np_array_speed()
+# test_list_speed()
+# test_tolist()
+# test_np2list_speed()
+test_np_argmin()
