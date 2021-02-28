@@ -2,6 +2,8 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 
+from collections import defaultdict
+
 from .trace import gen_irm_trace, get_yt_trace
 from .policy import LRU, LFU, OGD, gen_best_static, LRU_fast, LFU_fast, OGD_fast
 from .cache import init_cache
@@ -47,15 +49,16 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size):
     timer = Timer()
     timer.tic()
 
-    cache_init = init_cache(cache_size, catalog_size).tolist()
+    cache_init = init_cache(cache_size, catalog_size)
 
     print("LRU")
-    hitrate_LRU = simulate_cache(LRU_fast, trace, cache_init)
+    # hitrate_LRU = simulate_cache(LRU_fast, trace, cache_init)
+    hitrate_LRU = simulate_cache(LRU, trace, cache_init)
     timer.toc()
 
     print("LFU")
     # timer.tic()
-    LFU_fast.request_freq = np.ones(catalog_size).tolist()
+    LFU_fast.request_freq = np.ones(catalog_size)
     hitrate_LFU = simulate_cache(LFU_fast, trace, cache_init)
     timer.toc()
 
@@ -63,22 +66,22 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size):
     print("Best static")
     # timer.tic()
     best_static_cache = gen_best_static(trace, cache_size, catalog_size)
-    bs_func = lambda cache, request: 1 if request in cache else 0
-    hitrate_BH = simulate_cache(bs_func, trace, best_static_cache)
+
+    # Convert to dict for speed
+    bs_dict = defaultdict(lambda : 0)
+    for file in best_static_cache:
+        bs_dict[file] = 1
+    # bs_func = lambda cache, request: 1 if request in cache else 0
+
+    bs_func = lambda cache, request: cache[request]
+
+    hitrate_BH = simulate_cache(bs_func, trace, bs_dict)
     timer.toc()
 
     print("OGD")
     # timer.tic()
     hitrate_OGD = OGD(trace, cache_size, catalog_size, sample_size)
     
-    # eta0 = math.sqrt(2*cache_size/sample_size)
-    # OGD_func = lambda cache, request_file: OGD_fast(cache, request_file, cache_size, eta0)
-    
-    # OGD_cache_init = np.ones(catalog_size) * (cache_size / catalog_size)
-    # OGD_cache_init = OGD_cache_init.tolist()
-    
-    
-    # hitrate_OGD = simulate_cache(OGD_func, trace, OGD_cache_init)
     timer.toc()
 
     plot_comp(hitrate_LRU, hitrate_LFU, hitrate_BH, hitrate_OGD)

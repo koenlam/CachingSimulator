@@ -28,17 +28,31 @@ if __name__ == "__main__":
 
     # cProfile.run("simulate_OGD(irm_trace, cache_size, catalog_size, sample_size)")
     # cProfile.run("OGD(irm_trace, cache_size, catalog_size, sample_size)")
-    catalog_size = 62538
-    yt_trace = get_yt_trace()-1
-    yt_trace = yt_trace.tolist()
-
-    print(sample_size)
-    print(len(yt_trace))
-    # cProfile.run("OGD(yt_trace, cache_size, catalog_size, sample_size)")
-
     # catalog_size = 62538
-    # cache_size = int(0.3*catalog_size)
     # yt_trace = get_yt_trace()-1
     # yt_trace = yt_trace.tolist()
-    # # print(yt_trace)
+
+    # print(sample_size)
+    # print(len(yt_trace))
+    # cProfile.run("OGD(yt_trace, cache_size, catalog_size, sample_size)")
+
+    catalog_size = 62538
+    cache_size = int(0.3*catalog_size)
+    yt_trace = get_yt_trace()-1
+    yt_trace = yt_trace.tolist()
+    # print(yt_trace)
     # simulate_trace(yt_trace, cache_size, catalog_size, sample_size)
+    cProfile.run("simulate_trace(yt_trace, cache_size, catalog_size, sample_size)")
+
+    # cache = init_cache(cache_size, catalog_size).tolist()
+    # request_freq = np.ones(catalog_size)
+
+    # pr = cProfile.Profile()
+    # t = Timer()
+    # t.tic()
+    # pr.enable()
+    # for request_file in yt_trace:
+
+    # pr.disable()
+    # t.toc()
+    # pr.print_stats(sort='time')

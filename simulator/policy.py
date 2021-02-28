@@ -8,7 +8,10 @@ def LRU(cache, file_request):
     is_hit = False
     if file_request in cache: # Cache hit
         is_hit = True
-        idx = cache.tolist().index(file_request)
+        # idx = cache.tolist().index(file_request)
+
+        idx = np.where(cache == file_request)[0][0]
+
         cache[0:idx+1] = np.roll(cache[0:idx+1], shift=1) # Bring file request to front
         return is_hit
     else: # Cache miss
@@ -111,11 +114,17 @@ def LFU_fast(cache, request_file):
         # cache_file_low_freq_idx = random.choice([file_idx for file_idx, freq in enumerate(cache_file_freq) if freq == cache_file_freq_min])
 
 
-        cache_file_freq = [LFU_fast.request_freq[c] for c in cache]
-        cache_file_freq_min = min(cache_file_freq)
-        cache_file_low_freq_idx = random.choice([file_idx for file_idx, freq in enumerate(cache_file_freq) if freq == cache_file_freq_min])
+        # cache_file_freq = [LFU_fast.request_freq[c] for c in cache]
 
-        if LFU_fast.request_freq[request_file] > LFU_fast.request_freq[cache[cache_file_low_freq_idx]]:
+        cache_file_freq = LFU_fast.request_freq[cache]
+
+        cache_file_freq_min = np.min(cache_file_freq)
+        # cache_file_low_freq_idx = random.choice([file_idx for file_idx, freq in enumerate(cache_file_freq) if freq == cache_file_freq_min])
+
+        cache_file_low_freq_idx = np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])
+
+
+        if LFU_fast.request_freq[request_file] > cache_file_freq_min:
         # if LFU.request_freq[request_file] > cache_file_freq_min:
             cache[cache_file_low_freq_idx] = request_file
         return is_hit
@@ -173,9 +182,7 @@ def gen_best_static(trace, cache_size, catalog_size):
     return cache_best_static
 
 
-# def gen_best_static(trace, cache_size, catalog_size):
 
-    
 
 def test_best_static():
     from trace import gen_irm_trace
@@ -340,8 +347,8 @@ def test_grad_proj():
 
 if __name__ == "__main__":
     # test_LRU()
-    # print(timeit.timeit(test_LRU, number=1000000))
-    # print(timeit.timeit(test_LRU_fast, number=1000000))
+    print(timeit.timeit(test_LRU, number=1000000))
+    print(timeit.timeit(test_LRU_fast, number=1000000))
     # test_LFU()
     # test_best_static()
-    test_grad_proj()
+    # test_grad_proj()
