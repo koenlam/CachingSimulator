@@ -54,13 +54,13 @@ class CacheObj:
 
     def simulate(self, trace, verbose=True):
         N = len(trace)
-        percentage_mark = N // 10
+        percentage_mark = (N-1) // 10
         percentage_done = 0
         for i, request in enumerate(trace):
             self.request(request)
 
             # Print progress
-            if verbose and i != 0 and (i % percentage_mark == 0 or i == N-1):
+            if verbose and i != 0 and (i % percentage_mark == 0):
                 percentage_done += 10
                 print(f"{percentage_done}%")
 
