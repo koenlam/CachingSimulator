@@ -43,6 +43,9 @@ class CacheObj:
     def reset(self):
         self.cache = self.cache_init.copy()
         self.hits = []
+
+    def get_cache(self):
+        return self.cache
         
     def get_hitrate(self):
         N = len(self.hits)
@@ -69,6 +72,12 @@ class CacheStatic(CacheObj):
         is_hit = self.cache[request]
         self.hits.append(is_hit)
         return is_hit
+    
+    def get_cache(self):
+        if isinstance(self.cache, (defaultdict, dict)):
+            return np.array([key for key in self.cache if self.cache[key] > 0])
+        else:
+            return super().get_cache()
 
 
 class LRU(CacheObj):
