@@ -13,20 +13,16 @@ def init_cache(cache_size, catalog_size):
     random.shuffle(cache)
     return cache[:cache_size]
 
-
-def gen_best_static(trace, cache_size, catalog_size):
+def gen_best_static(trace, cache_size):
     if not isinstance(trace, np.ndarray):
         trace = np.array(trace)
-    
-    freq = np.bincount(trace)
-    files = np.arange(catalog_size)
-    
-    empirical_freq = list(zip(files, freq[files]))
-    empirical_freq.sort(key=lambda el: el[1], reverse=True)
-    
-    cache_best_static = list(map(lambda x: x[0], empirical_freq[:cache_size]))
 
-    # Convert from list of file into a default dict
+    files, count = np.unique(trace, return_counts=True)
+    sort_idx = np.argsort(-count) # -count to get the most frequent first
+
+    cache_best_static = files[sort_idx][:cache_size]
+
+    # Convert from list of file into a default dict for faster lookup when simulating
     cache_dict = defaultdict(lambda: 0)
     for file in cache_best_static:
         cache_dict[file] = 1

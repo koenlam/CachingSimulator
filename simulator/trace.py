@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.io
+from config import YT_TRACE
 
 
 # M 1000000
@@ -28,11 +29,23 @@ def gen_irm_trace(sample_size, catalog_size, power_law_exp):
     return np.array(trace)
 
 def get_yt_trace():
-    return scipy.io.loadmat(r"./traces/yt_trace.mat")['trace0'][0]
+    # return load_mat_array(r"./traces/yt_trace.mat")['trace0']
+    return load_mat_array(YT_TRACE)['trace0']
+    
+
+def load_mat_array(filename):
+    return scipy.io.loadmat(filename, squeeze_me=True)
+
+
+def parse_trace(trace):
+    sample_size = trace.size
+    catalog_size = np.max(trace)
+    trace = trace - 1 # Convert the Matlab indices starting at 1 to Python indices starting at 0
+    return trace, catalog_size, sample_size
     
 
 if __name__ == "__main__":
     # t = gen_irm_trace(100, 100, 0.8)
     # print(t)
     yt = get_yt_trace()
-    print(yt.size)
+    

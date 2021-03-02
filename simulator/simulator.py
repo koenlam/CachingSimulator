@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -23,18 +22,20 @@ def plot_comp(LRU, LFU, BH, OGD):
 
  
 
-def simulate_trace(trace, cache_size, catalog_size, sample_size):
+def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None):
     timer = Timer()
     timer.tic()
 
-    cache_init = init_cache(cache_size, catalog_size)
+    if cache_init is None:
+        cache_init = init_cache(cache_size, catalog_size)
 
     cache_LRU = LRU(cache_size, catalog_size, cache_init)
     cache_LFU = LFU(cache_size, catalog_size, cache_init)
 
-    cache_BH = CacheStatic(cache_size, catalog_size, gen_best_static(trace, cache_size, catalog_size))
+    cache_BH = CacheStatic(cache_size, catalog_size, gen_best_static(trace, cache_size))
     cache_OGD = OGD(cache_size, catalog_size, sample_size)
 
+    trace = trace[:sample_size]
     print("LRU")
     cache_LRU.simulate(trace)
     timer.toc()
@@ -52,3 +53,5 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size):
     timer.toc()
 
     plot_comp(cache_LRU.get_hitrate(), cache_LFU.get_hitrate(), cache_BH.get_hitrate(), cache_OGD.get_hitrate())
+
+    return cache_LRU, cache_LFU, cache_BH, cache_OGD
