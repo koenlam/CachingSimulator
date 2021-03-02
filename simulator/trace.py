@@ -37,7 +37,17 @@ def load_mat_array(filename):
     return scipy.io.loadmat(filename, squeeze_me=True)
 
 
-def parse_trace(trace):
+def parse_trace(mat_file : dict):
+    trace = None
+
+    # Naive way to parse the mat file
+    for key in mat_file:
+        if key[0] != "_":
+            if trace is None:
+                trace = mat_file[key]
+            else:
+                raise ValueError("Mat file contains multiple traces")
+
     sample_size = trace.size
     catalog_size = np.max(trace)
     trace = trace - 1 # Convert the Matlab indices starting at 1 to Python indices starting at 0
