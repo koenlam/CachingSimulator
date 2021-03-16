@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.io
-from config import YT_TRACE
+import scipy.stats
+# from config import YT_TRACE
 
 
 # M 1000000
@@ -25,8 +26,20 @@ def gen_irm_trace(sample_size, catalog_size, power_law_exp):
     # Note: in the highly unlikely case when the sample is exactly 1.0 this will crash
     trace = [np.where(sample < steps)[0][0] for sample in samples] # [0][0] since the result of np.where is an tuple
 
-
     return np.array(trace)
+
+def gen_dest_trace(sample_size, num_dest):
+    return np.random.randint(low=0, high=num_dest, size=sample_size)
+
+
+
+def poisson_shot_model(shot_duration, pareto_pop_coeff, pareto_start, shot_rate, simulation_time=1000):
+    # A_pareto=gprnd(0.8,1.6,2,nof_shots,1); %generate shot height (popularities)
+    nof_shots = shot_rate*simulation_time
+    t = scipy.stats.genpareto.rvs(c=0.8, scale=1.6, loc=2, size=(nof_shots, 1))
+    print(t)
+
+
 
 def get_yt_trace():
     # return load_mat_array(r"./traces/yt_trace.mat")['trace0']
@@ -57,5 +70,8 @@ def parse_trace(mat_file : dict):
 if __name__ == "__main__":
     # t = gen_irm_trace(100, 100, 0.8)
     # print(t)
-    yt = get_yt_trace()
+    # yt = get_yt_trace()
+
+    poisson_shot_model(shot_duration=100, pareto_pop_coeff=1.25, pareto_start=2, shot_rate=0.1, simulation_time=1000)
+
     
