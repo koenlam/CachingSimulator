@@ -5,22 +5,16 @@ from .cache import init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
 from .timer import Timer
 
 
-def plot_comp(LRU, LFU, BH, OGD):
-    t = np.arange(1, len(LRU)+1)
-    plt.plot(t, LRU)
-    plt.plot(t, LFU)
-    plt.plot(t, BH)
-    plt.plot(t, OGD)
+
+def plot_comp(*caches):
+    t = np.arange(1, len(caches[0].get_hitrate())+1)
+    for cache in caches:
+        plt.plot(t, cache.get_hitrate())
     
     plt.xlabel("time")
     plt.ylabel("avg hits")
-    plt.ylim([0, 0.8])
-
-    plt.legend(("LRU", "LFU", "Best static", "OGD"))
-
-    plt.show()
-
- 
+#     plt.ylim([0, 0.8])
+    plt.legend([cache.get_name() for cache in caches])
 
 def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None):
     timer = Timer()

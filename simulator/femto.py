@@ -35,6 +35,9 @@ class FemtoObj:
             self.cache_size, self.catalog_size, cache_init) for cache_init in self.caches_init]
         self.hits = []
 
+    def get_name(self):
+        return "FemtoObj"
+
 
 class mLRU(FemtoObj):
     def __init__(self, cache_size, catalog_size, caches_init, utilities, edges):
@@ -69,6 +72,9 @@ class mLRU(FemtoObj):
         self.hits.append(hit)
         return hit
 
+    def get_name(self):
+        return "mLRU"
+
 
 class LazyLRU(FemtoObj):
     def __init__(self, cache_size, catalog_size, caches_init, utilities, edges):
@@ -101,3 +107,6 @@ class LazyLRU(FemtoObj):
 
         self.hits.append(hit)
         return hit
+
+    def get_name(self):
+        return "LazyLRU"

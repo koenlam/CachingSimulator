@@ -63,6 +63,9 @@ class CacheObj:
                 percentage_done += 10
                 print(f"{percentage_done}%")
 
+    def get_name(self):
+        return "CacheObj"
+
 
 class CacheStatic(CacheObj):
     def __init__(self, cache_size, catalog_size, cache):
@@ -78,6 +81,9 @@ class CacheStatic(CacheObj):
             return np.array([key for key in self.cache if self.cache[key] > 0])
         else:
             return super().get_cache()
+
+    def get_name(self):
+        return "CacheStatic"
 
 
 class LRU(CacheObj):
@@ -99,13 +105,16 @@ class LRU(CacheObj):
         self.hits.append(is_hit)
         return is_hit
 
+    def get_name(self):
+        return "LRU"
+
 class LFU(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init):
         super().__init__(cache_size, catalog_size, convert2array(cache_init))
         self.file_freq = np.ones(self.catalog_size)
 
     def reset(self):
-        super.reset()
+        super().reset()
         self.file_freq = np.ones(self.catalog_size)
 
     def request(self, request):
@@ -125,6 +134,9 @@ class LFU(CacheObj):
 
         self.hits.append(is_hit)
         return is_hit
+
+    def get_name(self):
+        return "LFU"
 
 class OGD(CacheObj):
     def __init__(self, cache_size, catalog_size, sample_size):
@@ -172,8 +184,6 @@ class OGD(CacheObj):
                     cache_new[negative_values] = 0
         return cache_new
 
+    def get_name(self):
+        return "OGD"
 
-
-if __name__ == "__main__":
-    cache = init_cache(5, 10)
-    print(cache)
