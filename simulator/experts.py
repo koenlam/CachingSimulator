@@ -63,12 +63,26 @@ class ExpertCache(CacheObj):
             self.expert_choice = "LFU"
 
             # Find difference between LRU and LFU caches and add those file into the LRU cache
-            cache_diff = np.setdiff1d(
+            files_not_in_LRU = np.setdiff1d(
                 self.expert_LFU.get_cache(), self.expert_LRU.get_cache())
 
-            # There is a difference in caches
-            for file_diff in cache_diff:
-                self.expert_LRU.request(file_diff)
+            files_not_in_LFU = np.setdiff1d(
+                self.expert_LRU.get_cache(), self.expert_LFU.get_cache())
+
+            # Replace files that are not in LRU with the LFU ones
+            # With this both caches have the same files
+            for file_not_in_LFU, file_not_in_LRU in zip(files_not_in_LFU, files_not_in_LRU):
+                swap_idx = np.where(self.expert_LRU.get_cache() == file_not_in_LFU)
+                self.expert_LRU.cache[swap_idx] = file_not_in_LRU # TODO: Add proper replace method inside cache class
+
+            # Verification for the caches to be equal
+            # TODO: remove this for better performance
+            assert (np.sort(self.expert_LRU.get_cache()) == np.sort(self.expert_LFU.get_cache())).all()
+
+
+            # # There is a difference in caches
+            # for file_diff in cache_diff:
+            #     self.expert_LRU.request(file_diff)
 
             # Update the caches using their respective policies
             self.expert_LRU.request(request)
