@@ -5,20 +5,28 @@ from .cache import CacheObj, LRU, LFU
 
 
 class ExpertCache(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init):
+    def __init__(self, cache_size, catalog_size, cache_init, eps= 0.01, alg="WM"):
         super().__init__(cache_size, catalog_size, cache_init)
         self.num_experts = 2
         self.experts = ("LRU", "LFU")
         self.expert_LRU = LRU(cache_size, catalog_size, cache_init)
         self.expert_LFU = LFU(cache_size, catalog_size, cache_init)
-        self.request = self.request_WM
         self.eps = 0.01
+
+        if alg == "WM":
+            self.choice_expert = self.choice_expert_WM
+        elif alg == "RWM":
+            self.choice_expert = self.choice_expert_RWM
+        else:
+            raise ValueError("Chosen algorithm is invalid")
+
         self.reset()
 
     def reset(self):
         super().reset()
         self.expert_choice = random.choice(self.experts)
         self.weights = dict(zip(self.experts, np.ones(self.num_experts)))
+        self.weight_hist = dict(zip(self.experts, ([] for _ in range(self.num_experts))))
         self.expert_LRU.reset()
         self.expert_LFU.reset()
         self.expert_choices = []
@@ -27,7 +35,16 @@ class ExpertCache(CacheObj):
         choices = [self.experts.index(choice) for choice in self.expert_choices]
         return self.experts, choices
 
-    def request_WM(self, request):
+    
+    def choice_expert_WM(self):
+        return "LRU" if self.weights["LRU"] >= self.weights["LFU"] else "LFU"
+    
+    def choice_expert_RWM(self):
+        # Note: only work with 2 experts
+        rnd = random.random()
+        return "LRU" if rnd <= self.weights["LRU"] / sum(self.weights.values()) else "LFU"
+
+    def request(self, request):
         # TODO: proper method to check if a file is in the cache without updating the cache
         hit_LRU = request in self.expert_LRU.get_cache()
         hit_LFU = request in self.expert_LFU.get_cache()
@@ -37,6 +54,8 @@ class ExpertCache(CacheObj):
         # Save results
         self.hits.append(is_hit)
         self.expert_choices.append(self.expert_choice)
+        for expert in self.experts:
+            self.weight_hist[expert].append(self.weights[expert])
 
         # Adjust weights
         if hit_LRU is False:
@@ -46,9 +65,10 @@ class ExpertCache(CacheObj):
             self.weights["LFU"] *= (1-self.eps)
 
         # Update the caches
-        if self.weights["LRU"] >= self.weights["LFU"]:
+        self.expert_choice = self.choice_expert()
+
+        if self.expert_choice == "LRU":
             # Follow LRU
-            self.expert_choice = "LRU"
 
             # Set the cache of LFU to be the same as LRU and update both experts using their respective policies
             # TODO: Does not work when the caches are stored in different ways (e.g. OGD and LRU)
@@ -60,7 +80,6 @@ class ExpertCache(CacheObj):
             self.expert_LFU.request(request)
         else:
             # Follow LFU
-            self.expert_choice = "LFU"
 
             # Find difference between LRU and LFU caches and add those file into the LRU cache
             files_not_in_LRU = np.setdiff1d(
@@ -77,7 +96,7 @@ class ExpertCache(CacheObj):
 
             # Verification for the caches to be equal
             # TODO: remove this for better performance
-            assert (np.sort(self.expert_LRU.get_cache()) == np.sort(self.expert_LFU.get_cache())).all()
+            # assert (np.sort(self.expert_LRU.get_cache()) == np.sort(self.expert_LFU.get_cache())).all()
 
 
             # # There is a difference in caches
