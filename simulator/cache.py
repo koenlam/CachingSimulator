@@ -2,6 +2,7 @@ import numpy as np
 import random
 
 from collections import defaultdict
+from tqdm.auto import tqdm
 
 from .tools import convert2array
 
@@ -51,17 +52,10 @@ class CacheObj:
         N = len(self.hits)
         return np.cumsum(self.hits) / np.arange(1, N+1)
 
-    def simulate(self, trace, verbose=True):
+    def simulate(self, trace):
         N = len(trace)
-        percentage_mark = (N-1) // 10
-        percentage_done = 0
-        for i, request in enumerate(trace):
+        for i, request in tqdm(enumerate(trace), total=N):
             self.request(request)
-
-            # Print progress
-            if verbose and i != 0 and (i % percentage_mark == 0):
-                percentage_done += 10
-                print(f"{percentage_done}%")
 
     def get_name(self):
         return "CacheObj"
