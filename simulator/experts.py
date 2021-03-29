@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .cache import CacheObj, LRU, LFU
 
@@ -7,6 +8,7 @@ from .cache import CacheObj, LRU, LFU
 class ExpertCache(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init, eps= 0.01, alg="WM"):
         super().__init__(cache_size, catalog_size, cache_init)
+        self.name = "ExpertCache " + str(alg)
         self.num_experts = 2
         self.experts = ("LRU", "LFU")
         self.expert_LRU = LRU(cache_size, catalog_size, cache_init)
@@ -43,6 +45,20 @@ class ExpertCache(CacheObj):
         # Note: only work with 2 experts
         rnd = random.random()
         return "LRU" if rnd <= self.weights["LRU"] / sum(self.weights.values()) else "LFU"
+
+
+    def plot_expert_choices(self):
+        choices = [self.experts.index(choice) for choice in self.expert_choices]
+        t = np.arange(1, len(choices)+1)
+        plt.plot(t, choices, ".")
+        plt.plot(t, np.array(self.weight_hist["LFU"]) / (np.array(self.weight_hist["LRU"]) + np.array(self.weight_hist["LFU"]) ))
+        plt.plot(t, np.array(self.weight_hist["LRU"]) / (np.array(self.weight_hist["LRU"]) + np.array(self.weight_hist["LFU"]) ))
+        plt.xlabel("Time")
+        plt.ylabel("Choice")
+        plt.legend(("Choice", "LFU weight (normalised)", "LRU weight (normalised)"))
+        plt.yticks((0,1), self.experts)
+        plt.show()
+
 
     def request(self, request):
         # TODO: proper method to check if a file is in the cache without updating the cache
@@ -109,4 +125,4 @@ class ExpertCache(CacheObj):
         return is_hit
 
     def get_name(self):
-        return "ExpertCache"
+        return self.name

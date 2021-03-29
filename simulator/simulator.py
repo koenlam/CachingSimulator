@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .cache import init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
+from .experts import ExpertCache
 from .timer import Timer
 
 
@@ -16,7 +17,7 @@ def plot_comp(*caches):
 #     plt.ylim([0, 0.8])
     plt.legend([cache.get_name() for cache in caches])
 
-def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None):
+def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None, plot_hitrates=True):
     timer = Timer()
     timer.tic()
 
@@ -28,6 +29,8 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
 
     cache_BH = CacheStatic(cache_size, catalog_size, gen_best_static(trace, cache_size))
     cache_OGD = OGD(cache_size, catalog_size, sample_size)
+    cache_EP_WM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.1, alg="WM")
+    cache_EP_RWM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.1, alg="RWM")
 
     trace = trace[:sample_size]
     print("LRU")
@@ -42,10 +45,18 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     cache_BH.simulate(trace)
     timer.toc()
 
+    print("Experts WM")
+    cache_EP_WM.simulate(trace)
+    timer.toc()
+
+    print("Experts RWM")
+    cache_EP_RWM.simulate(trace)
+    timer.toc()
+
     print("OGD")
     cache_OGD.simulate(trace)
     timer.toc()
 
-    plot_comp(cache_LRU.get_hitrate(), cache_LFU.get_hitrate(), cache_BH.get_hitrate(), cache_OGD.get_hitrate())
-
-    return cache_LRU, cache_LFU, cache_BH, cache_OGD
+    if plot_hitrates:
+        plot_comp(cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD)
+    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD
