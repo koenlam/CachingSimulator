@@ -133,16 +133,20 @@ class LFU(CacheObj):
         return "LFU"
 
 class OGD(CacheObj):
-    def __init__(self, cache_size, catalog_size, sample_size):
-        cache_init = np.ones(catalog_size) * (cache_size / catalog_size)
+    def __init__(self, cache_size, catalog_size, sample_size, cache_init=None, eta0=None):
+        if cache_init is None:
+            cache_init = np.ones(catalog_size) * (cache_size / catalog_size)
         super().__init__(cache_size, catalog_size, cache_init)
 
-        self.eta0 = np.sqrt(2*cache_size/sample_size)
+        if eta0 is None:
+            self.eta0 = np.sqrt(2*cache_size/sample_size)
+        else:
+            self.eta0 = eta0
 
-    def request(self, request):
+    def request(self, request, gradient=1):
         is_hit = self.cache[request]
 
-        self.cache[request] = self.cache[request] + self.eta0
+        self.cache[request] = self.cache[request] + self.eta0*gradient
         self.cache = self._grad_proj(self.cache, self.cache_size, request)
 
         self.hits.append(is_hit)

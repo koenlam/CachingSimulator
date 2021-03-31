@@ -1,3 +1,6 @@
+
+from scipy import optimize
+
 from .cache import *
 
 
@@ -19,9 +22,13 @@ class FemtoObj:
             self.utilities_sorted.append(np.sort(utility)[::-1])
             self.utilities_sorted_idx.append(np.argsort(utility)[::-1])
 
+        self.caches = []
+        self.hits = []
+
+    def init_caches(self):
         self.caches = [self.cache_type(
             self.cache_size, self.catalog_size, cache_init) for cache_init in self.caches_init]
-        self.hits = []
+
 
     def get_cache(self):
         return [c.cache for c in self.caches]
@@ -31,8 +38,7 @@ class FemtoObj:
         return np.cumsum(np.sum(self.hits, axis=1)) / np.arange(1, N+1)
 
     def reset(self):
-        self.caches = [self.cache_type(
-            self.cache_size, self.catalog_size, cache_init) for cache_init in self.caches_init]
+        self.init_caches()
         self.hits = []
 
     def get_name(self):
@@ -42,9 +48,10 @@ class FemtoObj:
 class mLRU(FemtoObj):
     def __init__(self, cache_size, catalog_size, caches_init, utilities, edges):
         super().__init__(cache_size, catalog_size, caches_init, LRU, utilities, edges)
+        self.reset()
 
     def request(self, request, dest):
-        hit = np.zeros(self.num_user_locs)
+        hit = np.zeros(self.num_user_locs)  
         local_edges = self.edges[dest, ]
         z = np.zeros(self.num_cache, dtype=np.int)
         lazy_flag = 0
@@ -61,8 +68,8 @@ class mLRU(FemtoObj):
 
         if lazy_flag == 0:
             cache_options = np.where(local_edges > 0)[0]
-            # cache_choice = random.choice(cache_options)
-            cache_choice = cache_options[0]
+            cache_choice = random.choice(cache_options)
+            # cache_choice = cache_options[0] # Used to compare with the Matlab version
             self.caches[cache_choice].request(request)
         elif lazy_flag > 0:
             for i, zi in enumerate(z):
@@ -79,6 +86,7 @@ class mLRU(FemtoObj):
 class LazyLRU(FemtoObj):
     def __init__(self, cache_size, catalog_size, caches_init, utilities, edges):
         super().__init__(cache_size, catalog_size, caches_init, LRU, utilities, edges)
+        self.reset()
 
     def request(self, request, dest):
         hit = np.zeros(self.num_user_locs)
@@ -110,3 +118,60 @@ class LazyLRU(FemtoObj):
 
     def get_name(self):
         return "LazyLRU"
+
+
+class BSA(FemtoObj):
+    def __init__(self, cache_sizes, catalog_size, sample_size, utilities, edges):
+        # Init caches
+        n_caches = edges.shape[1]
+        caches_init = [np.random.random(catalog_size) for _ in range(n_caches)]
+
+        for (i, cache_init), c_size in zip(enumerate(caches_init), cache_sizes):
+            caches_init[i] = c_size * cache_init / np.sum(cache_init)
+            # caches_init[i] = c_size * np.ones(catalog_size) / caches_init[i].size
+
+        super().__init__(cache_sizes, catalog_size, caches_init, OGD, utilities, edges)
+        self.sample_size = sample_size
+
+        self.eta = np.sqrt(2*np.mean(cache_sizes) * self.num_cache / np.max(np.sum(edges, axis=0)) / sample_size ) / np.max(utilities)
+
+        self.reset()
+
+
+    def init_caches(self):
+        self.caches = [self.cache_type(c_size, self.catalog_size, self.sample_size, cache_init, self.eta) for c_size, cache_init in zip(self.cache_size, self.caches_init)]
+
+
+    def request(self, request, dest):
+        hit = np.zeros(self.num_user_locs)
+        local_edges = self.edges[dest, ]
+        z = np.zeros(self.num_cache, dtype=np.float)
+
+        request_cache_allocation = np.array([cache.get_cache()[request] for cache in self.caches])
+
+        for idx in self.utilities_sorted_idx[dest]:
+            if local_edges[idx] == 1: # Cache reachable
+                z[idx] = min(request_cache_allocation[idx], 1-np.sum(z))
+
+        hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
+
+        # Find subgradient
+        c = np.insert(request_cache_allocation, 0, 1) # Insert value 1 as allocation for the file for MBS
+        A = np.concatenate((-np.ones((self.num_cache, 1)), -np.eye(self.num_cache)), axis=1)
+        b = -self.utilities[dest,] * local_edges
+        x = optimize.linprog(c=c, A_ub=A, b_ub=b, method="revised simplex").x # By default the bounds are (0, None), and thus the decision variables are nonnegative
+        g = x[1:] # Exclude MBS
+
+        # Update
+        for subgradient, cache in zip(g, self.caches):
+            if subgradient > 0.0001:
+                cache.request(request, gradient=subgradient)
+
+        self.hits.append(hit)
+        return hit
+
+
+    def get_name(self):
+        return "BSA"
+
+
