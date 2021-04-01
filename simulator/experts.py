@@ -65,7 +65,8 @@ class ExpertCache(CacheObj):
         hit_LRU = request in self.expert_LRU.get_cache()
         hit_LFU = request in self.expert_LFU.get_cache()
 
-        is_hit = hit_LRU if self.expert_choice == "LRU" else hit_LFU
+        is_hit = request in self.cache
+
 
         # Save results
         self.hits.append(is_hit)
@@ -80,22 +81,18 @@ class ExpertCache(CacheObj):
         if hit_LFU is False:
             self.weights["LFU"] *= (1-self.eps)
 
-        # Update the caches
-        self.expert_choice = self.choice_expert()
 
+        # Reset "virtual caches"
         if self.expert_choice == "LRU":
-            # Follow LRU
+            # Reset LFU cache to LRU
 
             # Set the cache of LFU to be the same as LRU and update both experts using their respective policies
             # TODO: Does not work when the caches are stored in different ways (e.g. OGD and LRU)
             # Therefore an set_cache method has to be added to the cache objects
             self.expert_LFU.cache = self.expert_LRU.cache.copy()
 
-            # Update the caches using their respective policies
-            self.expert_LRU.request(request)
-            self.expert_LFU.request(request)
-        else:
-            # Follow LFU
+        elif self.expert_choice == "LFU":
+            # Reset LRU to LFU
 
             # Find difference between LRU and LFU caches and add those file into the LRU cache
             files_not_in_LRU = np.setdiff1d(
@@ -113,15 +110,18 @@ class ExpertCache(CacheObj):
             # Verification for the caches to be equal
             # TODO: remove this for better performance
             # assert (np.sort(self.expert_LRU.get_cache()) == np.sort(self.expert_LFU.get_cache())).all()
+        else:
+            raise ValueError("Expert choice not valid")
 
 
-            # # There is a difference in caches
-            # for file_diff in cache_diff:
-            #     self.expert_LRU.request(file_diff)
+        # Update the "virtual"caches and actual caches
+        self.expert_choice = self.choice_expert()
 
-            # Update the caches using their respective policies
-            self.expert_LRU.request(request)
-            self.expert_LFU.request(request)
+        self.expert_LRU.request(request)
+        self.expert_LFU.request(request)
+
+        self.cache = self.expert_LRU.get_cache() if self.expert_choice == "LRU" else self.expert_LFU.get_cache()
+
         return is_hit
 
     def get_name(self):
