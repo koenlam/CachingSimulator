@@ -185,3 +185,18 @@ class OGD(CacheObj):
     def get_name(self):
         return "OGD"
 
+class BestDynamicCache(CacheStatic):
+    def __init__(self, cache_size, catalog_size):
+        super().__init__(cache_size, catalog_size, np.zeros(cache_size))
+
+
+    def simulate(self, trace):
+        N = len(trace)
+        for i, request in tqdm(enumerate(trace), total=N):
+            # Dynamically adjust cache 
+            self.cache = gen_best_static(trace[:i+1], self.cache_size)
+            self.request(request)   
+
+    def get_name(self):
+        return "Best Dynamic" 
+
