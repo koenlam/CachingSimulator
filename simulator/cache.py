@@ -46,6 +46,10 @@ class CacheObj:
         self.cache = self.cache_init.copy()
         self.hits = []
 
+    def get(self, request):
+        """Return whether or not a request is in the cache. Doesn't update the cache"""
+        return request in self.cache
+
     def get_cache(self):
         return self.cache
         
@@ -141,6 +145,9 @@ class OGD(CacheObj):
         else:
             self.eta0 = eta0
         self.name = "OGD"
+
+    def get(self, request):
+        return self.cache[request]
 
     def request(self, request, gradient=1):
         is_hit = self.cache[request]
