@@ -40,6 +40,7 @@ class CacheObj:
 
         self.cache = cache_init.copy()
         self.hits = []
+        self.name = "CacheObj"
 
     def reset(self):
         self.cache = self.cache_init.copy()
@@ -58,12 +59,13 @@ class CacheObj:
             self.request(request)
 
     def get_name(self):
-        return "CacheObj"
+        return self.name
 
 
 class CacheStatic(CacheObj):
     def __init__(self, cache_size, catalog_size, cache):
         super().__init__(cache_size, catalog_size, cache)
+        self.name = "CacheStatic"
 
     def request(self, request):
         is_hit = self.cache[request]
@@ -76,13 +78,12 @@ class CacheStatic(CacheObj):
         else:
             return super().get_cache()
 
-    def get_name(self):
-        return "CacheStatic"
 
 
 class LRU(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init):
         super().__init__(cache_size, catalog_size, convert2array(cache_init))
+        self.name = "LRU"
     
     def request(self, request):
         is_hit = False
@@ -99,13 +100,12 @@ class LRU(CacheObj):
         self.hits.append(is_hit)
         return is_hit
 
-    def get_name(self):
-        return "LRU"
 
 class LFU(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init):
         super().__init__(cache_size, catalog_size, convert2array(cache_init))
         self.file_freq = np.ones(self.catalog_size)
+        self.name = "LFU"
 
     def reset(self):
         super().reset()
@@ -129,8 +129,6 @@ class LFU(CacheObj):
         self.hits.append(is_hit)
         return is_hit
 
-    def get_name(self):
-        return "LFU"
 
 class OGD(CacheObj):
     def __init__(self, cache_size, catalog_size, sample_size, cache_init=None, eta0=None):
@@ -142,6 +140,7 @@ class OGD(CacheObj):
             self.eta0 = np.sqrt(2*cache_size/sample_size)
         else:
             self.eta0 = eta0
+        self.name = "OGD"
 
     def request(self, request, gradient=1):
         is_hit = self.cache[request]
@@ -182,21 +181,49 @@ class OGD(CacheObj):
                     cache_new[negative_values] = 0
         return cache_new
 
-    def get_name(self):
-        return "OGD"
 
-class BestDynamicCache(CacheStatic):
+# class BestDynamicCache(CacheStatic):
+#     def __init__(self, cache_size, catalog_size):
+#         super().__init__(cache_size, catalog_size, np.zeros(cache_size))
+#         self.name = "Best Dynamic"
+
+
+#     def simulate(self, trace):
+#         N = len(trace)
+#         for i, request in tqdm(enumerate(trace), total=N):
+#             # Dynamically adjust cache 
+#             self.cache = gen_best_static(trace[:i+1], self.cache_size)
+#             self.request(request)   
+
+
+class BestDynamicCache(CacheObj):
     def __init__(self, cache_size, catalog_size):
-        super().__init__(cache_size, catalog_size, np.zeros(cache_size))
+        super().__init__(cache_size, catalog_size, np,zeros(cache_size))
+        self.file_freq = np.ones(self.catalog_size)
+        self.name = "Best Dynamic"
+
+    def request(self, request):
+        # Update cache
+        self.file_freq[request] += 1
+        self.cache = np.argsort(self.file_freq)[-self.cache_size:]
+
+        is_hit = True if request in self.cache else False
+        self.hits.append(is_hit)
+        return is_hit
 
 
-    def simulate(self, trace):
-        N = len(trace)
-        for i, request in tqdm(enumerate(trace), total=N):
-            # Dynamically adjust cache 
-            self.cache = gen_best_static(trace[:i+1], self.cache_size)
-            self.request(request)   
+class FTPL(CacheObj):
+    def __init__(self, cache_size, catalog_size, cache_init):
+        super().__init__(cache_size, catalog_size, cache_init)
+        self.file_freq = np.ones(self.catalog_size)
+        self.name = "FTPL"
 
-    def get_name(self):
-        return "Best Dynamic" 
+    def request(self, request):
+        is_hit = True if request in self.cache else False
+        self.hits.append(is_hit)
 
+        # Update cache
+        self.file_freq[request] += 1
+        y = self.file_freq + np.random.randn(self.file_freq.size)
+        self.cache = np.argsort(y)[-self.cache_size:]
+        return is_hit

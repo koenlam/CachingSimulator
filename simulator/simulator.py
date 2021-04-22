@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .cache import init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
+from .cache import FTPL, init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
 from .experts import ExpertCache
 from .timer import Timer
 
@@ -31,6 +31,7 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     cache_OGD = OGD(cache_size, catalog_size, sample_size)
     cache_EP_WM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.1, alg="WM")
     cache_EP_RWM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.1, alg="RWM")
+    cache_FTPL = FTPL(cache_size, catalog_size, cache_init)
 
     trace = trace[:sample_size]
     print("LRU")
@@ -57,6 +58,10 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     cache_OGD.simulate(trace)
     timer.toc()
 
+    print("FTPL")
+    cache_FTPL.simulate(trace)
+    timer.toc()
+
     if plot_hitrates:
         plot_comp(cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD)
-    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD
+    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD, cache_FTPL

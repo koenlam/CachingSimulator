@@ -124,5 +124,3 @@ class ExpertCache(CacheObj):
 
         return is_hit
 
-    def get_name(self):
-        return self.name
