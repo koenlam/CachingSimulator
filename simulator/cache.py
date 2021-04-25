@@ -205,7 +205,7 @@ class OGD(CacheObj):
 
 class BestDynamicCache(CacheObj):
     def __init__(self, cache_size, catalog_size):
-        super().__init__(cache_size, catalog_size, np,zeros(cache_size))
+        super().__init__(cache_size, catalog_size, np.zeros(cache_size))
         self.file_freq = np.ones(self.catalog_size)
         self.name = "Best Dynamic"
 

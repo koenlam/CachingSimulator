@@ -6,14 +6,14 @@ from .cache import CacheObj, LRU, LFU
 
 
 class ExpertCache(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init, eps= 0.01, alg="WM"):
+    def __init__(self, cache_size, catalog_size, cache_init, eps=0.01, alg="WM"):
         super().__init__(cache_size, catalog_size, cache_init)
         self.name = "ExpertCache " + str(alg)
         self.num_experts = 2
         self.experts = ("LRU", "LFU")
         self.expert_LRU = LRU(cache_size, catalog_size, cache_init)
         self.expert_LFU = LFU(cache_size, catalog_size, cache_init)
-        self.eps = 0.01
+        self.eps = eps
 
         if alg == "WM":
             self.choice_expert = self.choice_expert_WM
@@ -123,4 +123,58 @@ class ExpertCache(CacheObj):
         self.cache = self.expert_LRU.get_cache() if self.expert_choice == "LRU" else self.expert_LFU.get_cache()
 
         return is_hit
+
+
+class ExpertsCache_neq(CacheObj):
+    def __init__(self, cache_size, catalog_size, cache_init, experts, eps=0.01, alg="WM"):
+        super().__init__(cache_size, catalog_size, cache_init)
+        self.name = "Expert Cache without equalization " + str(alg)
+        self.num_experts = len(experts)
+        self.expert_policies = experts
+        self.eps = eps
+
+        self.reset()
+
+    def reset(self):
+        super().reset()
+        self.experts = dict()
+        self.init_experts()
+        
+        self.expert_names = list(self.experts.keys())
+        self.weights = dict(zip(self.expert_names, np.ones(self.num_experts)))
+        self.weights_hist = dict(zip(self.expert_names, ([] for _ in range(self.num_experts))))
+        
+        self.cache = self.experts[random.choice(self.expert_names)]
+        self.expert_choices = []
+
+    
+    def init_experts(self):
+        for policy in self.expert_policies:
+            expert = policy(cache_size=self.cache_size, catalog_size=self.catalog_size, cache_init=self.cache_init)
+            self.experts[expert.get_name()] = expert
+
+    def choice_expert(self):
+        return self.experts[max(self.weights.items(), key=lambda x: x[1])[0]]
+
+    def request(self, request):
+        # Check if hit
+        is_hit = self.cache.get(request)
+
+        # Save results
+        self.hits.append(is_hit)
+        self.expert_choices.append(self.cache.get_name())
+        for expert in self.expert_names:
+            self.weights_hist[expert].append(self.weights[expert])
+
+
+        # Adjust weights and update caches
+        for expert in self.experts.values():
+            self.weights[expert.get_name()] *= (1-self.eps*(1-float(expert.request(request))))
+
+        # Choice the expert to follow for the next iteration
+        self.cache = self.choice_expert()
+
+        return is_hit
+
+
 

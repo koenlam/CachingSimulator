@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .cache import FTPL, init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
-from .experts import ExpertCache
+from .experts import ExpertCache, ExpertsCache_neq
 from .timer import Timer
 
 
@@ -29,9 +29,14 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
 
     cache_BH = CacheStatic(cache_size, catalog_size, gen_best_static(trace, cache_size))
     cache_OGD = OGD(cache_size, catalog_size, sample_size)
-    cache_EP_WM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.1, alg="WM")
-    cache_EP_RWM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.1, alg="RWM")
+    cache_EP_WM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.01, alg="WM")
+    cache_EP_RWM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.01, alg="RWM")
     cache_FTPL = FTPL(cache_size, catalog_size, cache_init)
+
+    OGD_init = lambda cache_size, catalog_size, cache_init: OGD(cache_size, catalog_size, sample_size)
+    experts = (LRU, LFU, OGD_init, FTPL)
+
+    cache_EP_neq = ExpertsCache_neq(cache_size, catalog_size, cache_init, experts)
 
     trace = trace[:sample_size]
     print("LRU")
@@ -62,6 +67,12 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     cache_FTPL.simulate(trace)
     timer.toc()
 
-    if plot_hitrates:
-        plot_comp(cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD)
-    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD, cache_FTPL
+    print("Experts WM no equalization")
+    cache_EP_neq.simulate(trace)
+    timer.toc
+
+    if plot_hitrates is True:
+        print("Warning: plot hitrates has be deprecated")
+
+   
+    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD, cache_FTPL, cache_EP_neq
