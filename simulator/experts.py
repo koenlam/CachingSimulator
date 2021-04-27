@@ -125,7 +125,7 @@ class ExpertCache(CacheObj):
         return is_hit
 
 
-class ExpertsCache_neq(CacheObj):
+class ExpertsCacheNeq(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init, experts, eps=0.01, alg="WM"):
         super().__init__(cache_size, catalog_size, cache_init)
         self.name = "Expert Cache without equalization " + str(alg)
@@ -176,5 +176,177 @@ class ExpertsCache_neq(CacheObj):
 
         return is_hit
 
+class ExpertsCacheEvict(CacheObj):
+    def __init__(self, cache_size, catalog_size, cache_init, eps=0.01, alg="WM"):
+        super().__init__(cache_size, catalog_size, cache_init)
+        self.name = "Expert Cache using eviction experts " + str(alg)
+        self.expert_policies = (EvictLRU, EvictLFU, EvictFTPL)
+        self.num_experts = len(self.expert_policies)
+        self.eps = eps
 
+        if alg == "WM":
+            self.alg = "WM"
+            self.choice_expert = self.choice_expert_WM
+        elif alg in ("WM-HS", "RWM-HS", "RWM"):
+            # Weighted majority Hindsight
+            raise ValueError(f"{alg} not implemented")
+        else:
+            raise ValueError(f"Unknown algorithm {alg}")
+
+
+        self.reset()
+
+    def reset(self):
+        super().reset()
+        self.experts = [policy(self.catalog_size, self.cache_init) for policy in self.expert_policies]
+        self.weights = np.ones(self.num_experts)
+        self.weights_hist = [[] for _ in range(self.num_experts)]
+        self.cache = self.cache_init
+        self.expert_choice = random.randrange(0, self.num_experts)
+        self.expert_choices = []
+
+    def choice_expert_WM(self):
+        return max(enumerate(self.weights), key=lambda x: x[1])[0]
+
+    def request(self, request):
+        # Check for hit
+        is_hit = request in self.cache
+
+        # Adjust weights
+        if not is_hit:
+            self.weights[self.expert_choice] *= (1-self.eps)
+
+        # Save results
+        for expert, weight in enumerate(self.weights):
+            self.weights_hist[expert].append(weight)
+        self.hits.append(is_hit)
+        self.expert_choices.append(self.expert_choice)
+
+        # Choice expert
+        self.expert_choice = self.choice_expert()
+        files2evict, files2add = self.experts[self.expert_choice].ask_advice(request, self.cache)
+
+        if type(files2evict) != np.ndarray:
+            self.cache = np.where(self.cache==files2evict, files2add, self.cache)
+        else:
+            # Update cache
+            for file2evict, file2add in zip(files2evict, files2add):
+                self.cache = np.where(self.cache==file2evict, file2add, self.cache)
+
+        if self.cache.dtype != np.int64:
+            # print("Dtype changed")
+            # TODO: Investigate why the dtype sometimes changes
+            self.cache = self.cache.astype(np.int64)
+
+        assert(self.cache.size == self.cache_size)
+        assert(self.cache.dtype == np.int64)
+
+        return is_hit
+      
+class EvictObj:
+    def __init__(self, catalog_size, cache_init):
+        self.name = "EvictObj"
+        self.catalog_size = catalog_size
+        self.cache_init = cache_init
+        self.cache_size = len(cache_init)
+        
+    def get_name(self):
+        return self.name
+
+
+class EvictLRU(EvictObj):
+    def __init__(self, catalog_size, cache_init):
+        super().__init__(catalog_size, cache_init)
+        self.name = "LRU"
+        self.MAX_RECENCY = self.cache_size
+        self.reset()
+
+    def reset(self):
+        # File_recency: the index corresponds to the file and the higher the value the more recent
+        self.file_recency = np.zeros(self.catalog_size)
+        
+        for i, file in enumerate(self.cache_init):
+            self.file_recency[file] += i + 1 # Due to the index starting at zero, one it added to differentiate it from the not in the cache
+
+    def update(self, request):
+        self.file_recency = np.clip(self.file_recency-1, a_min=0, a_max=None)
+        self.file_recency[request] = self.MAX_RECENCY
+
+
+    def ask_advice(self, request, cache):
+        if request in cache:
+            file2evict = None
+            file2add = None
+        else:
+            # Look for the file to evict
+            cache_recency = self.file_recency[cache]
+            file2evict = cache[np.argmin(cache_recency)]
+            file2add = request
+
+        # Update the internal values
+        self.update(request)
+        return file2evict, file2add
+
+class EvictLFU(EvictObj):
+    def __init__(self, catalog_size, cache_init):
+        super().__init__(catalog_size, cache_init)
+        self.name = "LFU"
+        self.reset()
+
+    def reset(self):
+        self.file_freq = np.zeros(self.catalog_size)
+
+    def update(self, request):
+        self.file_freq[request] += 1
+
+    def ask_advice(self, request, cache):
+        # Update the internal values
+        self.update(request)
+
+        file2evict = None
+        file2add = None
+
+        if request not in cache:
+            # Look for the file to evict
+            cache_file_freq = self.file_freq[cache]
+            cache_file_freq_min = np.min(cache_file_freq)
+
+            if self.file_freq[request] > cache_file_freq_min:
+                # If the file request has a higher frequency than a file(s) in the cache
+                # Evict the file and replace the request
+                # If multiple file with the same low freq than choice a random file with low freq
+                file2evict = np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])
+                file2add = request
+        return file2evict, file2add
+
+class EvictFTPL(EvictObj):
+    def __init__(self, catalog_size, cache_init):
+        super().__init__(catalog_size, cache_init)
+        self.name = "FTPL"
+        self.reset()
+
+    def reset(self):
+        self.file_freq = np.zeros(self.catalog_size)
+
+    def update(self, request):
+        self.file_freq[request] += 1
+
+    def ask_advice(self, request, cache):
+        #Update cache
+        self.update(request)
+
+        y = self.file_freq + np.random.randn(self.file_freq.size)
+        new_cache = np.argsort(y)[-self.cache_size:]
+
+        file2evict = np.setdiff1d(cache, new_cache)
+        file2add = np.setdiff1d(new_cache, cache)
+
+        file2evict = file2evict if file2evict.size else None
+        file2add = file2add if file2add.size else None
+
+        return file2evict, file2add
+
+
+
+        
 

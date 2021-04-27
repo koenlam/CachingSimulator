@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .cache import FTPL, init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
-from .experts import ExpertCache, ExpertsCache_neq
+from .experts import ExpertCache, ExpertsCacheNeq
 from .timer import Timer
 
 
@@ -36,7 +36,7 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     OGD_init = lambda cache_size, catalog_size, cache_init: OGD(cache_size, catalog_size, sample_size)
     experts = (LRU, LFU, OGD_init, FTPL)
 
-    cache_EP_neq = ExpertsCache_neq(cache_size, catalog_size, cache_init, experts)
+    cache_EP_neq = ExpertsCacheNeq(cache_size, catalog_size, cache_init, experts)
 
     trace = trace[:sample_size]
     print("LRU")
