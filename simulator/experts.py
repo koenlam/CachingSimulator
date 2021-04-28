@@ -184,10 +184,10 @@ class ExpertsCacheEvict(CacheObj):
         self.num_experts = len(self.expert_policies)
         self.eps = eps
 
-        if alg == "WM":
-            self.alg = "WM"
+        if alg in ("WM", "WM-HS"):
+            self.alg = alg
             self.choice_expert = self.choice_expert_WM
-        elif alg in ("WM-HS", "RWM-HS", "RWM"):
+        elif alg in ("RWM-HS", "RWM"):
             # Weighted majority Hindsight
             raise ValueError(f"{alg} not implemented")
         else:
@@ -201,9 +201,11 @@ class ExpertsCacheEvict(CacheObj):
         self.experts = [policy(self.catalog_size, self.cache_init) for policy in self.expert_policies]
         self.weights = np.ones(self.num_experts)
         self.weights_hist = [[] for _ in range(self.num_experts)]
-        self.cache = self.cache_init
+        self.cache = self.cache_init.copy()
+        self.prev_cache = self.cache_init.copy()
         self.expert_choice = random.randrange(0, self.num_experts)
         self.expert_choices = []
+        self.advice = [([None], [None]) for _ in range(self.num_experts)]
 
     def choice_expert_WM(self):
         return max(enumerate(self.weights), key=lambda x: x[1])[0]
@@ -213,8 +215,17 @@ class ExpertsCacheEvict(CacheObj):
         is_hit = request in self.cache
 
         # Adjust weights
-        if not is_hit:
-            self.weights[self.expert_choice] *= (1-self.eps)
+        if self.alg == "WM":
+            if not is_hit:
+                self.weights[self.expert_choice] *= (1-self.eps)
+        elif self.alg == "WM-HS":
+            for expert, (files2evict, files2add) in enumerate(self.advice):
+                if not((request in self.prev_cache and request not in files2evict) \
+                    or (request not in self.prev_cache and request in files2add)):
+                    self.weights[expert] *= (1-self.eps)
+
+        else:
+            raise ValueError(f"Request: algorithm unknown")
 
         # Save results
         for expert, weight in enumerate(self.weights):
@@ -224,14 +235,18 @@ class ExpertsCacheEvict(CacheObj):
 
         # Choice expert
         self.expert_choice = self.choice_expert()
-        files2evict, files2add = self.experts[self.expert_choice].ask_advice(request, self.cache)
+        self.advice = [expert.ask_advice(request, self.cache) for expert in self.experts]
+        files2evict, files2add = self.advice[self.expert_choice]
 
-        if type(files2evict) != np.ndarray:
-            self.cache = np.where(self.cache==files2evict, files2add, self.cache)
-        else:
-            # Update cache
-            for file2evict, file2add in zip(files2evict, files2add):
-                self.cache = np.where(self.cache==file2evict, file2add, self.cache)
+        # if type(files2evict) != np.ndarray:
+        #     self.cache = np.where(self.cache==files2evict, files2add, self.cache)
+        # else:
+
+
+        # Update cache
+        self.prev_cache = self.cache.copy()
+        for file2evict, file2add in zip(files2evict, files2add):
+            self.cache = np.where(self.cache==file2evict, file2add, self.cache)
 
         if self.cache.dtype != np.int64:
             # print("Dtype changed")
@@ -285,7 +300,7 @@ class EvictLRU(EvictObj):
 
         # Update the internal values
         self.update(request)
-        return file2evict, file2add
+        return [file2evict], [file2add]
 
 class EvictLFU(EvictObj):
     def __init__(self, catalog_size, cache_init):
@@ -317,7 +332,7 @@ class EvictLFU(EvictObj):
                 # If multiple file with the same low freq than choice a random file with low freq
                 file2evict = np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])
                 file2add = request
-        return file2evict, file2add
+        return [file2evict], [file2add]
 
 class EvictFTPL(EvictObj):
     def __init__(self, catalog_size, cache_init):
@@ -341,8 +356,8 @@ class EvictFTPL(EvictObj):
         file2evict = np.setdiff1d(cache, new_cache)
         file2add = np.setdiff1d(new_cache, cache)
 
-        file2evict = file2evict if file2evict.size else None
-        file2add = file2add if file2add.size else None
+        file2evict = file2evict if file2evict.size else [None]
+        file2add = file2add if file2add.size else [None]
 
         return file2evict, file2add
 
