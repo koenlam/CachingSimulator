@@ -203,14 +203,12 @@ class ExpertsCacheEvict(CacheObj):
         self.weights_hist = [[] for _ in range(self.num_experts)]
         self.cache = self.cache_init.copy()
         self.prev_cache = self.cache_init.copy()
-        # self.expert_choice = random.randrange(0, self.num_experts)
-        self.expert_choice = 1
+        self.expert_choice = random.randrange(0, self.num_experts)
         self.expert_choices = []
         self.advice = [([None], [None]) for _ in range(self.num_experts)]
 
     def choice_expert_WM(self):
-        # return max(enumerate(self.weights), key=lambda x: x[1])[0]
-        return 1
+        return max(enumerate(self.weights), key=lambda x: x[1])[0]
 
     def request(self, request):
         # Check for hit
