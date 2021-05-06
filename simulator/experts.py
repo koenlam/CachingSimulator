@@ -203,13 +203,14 @@ class ExpertsCacheEvict(CacheObj):
         self.weights_hist = [[] for _ in range(self.num_experts)]
         self.cache = self.cache_init.copy()
         self.prev_cache = self.cache_init.copy()
-        self.expert_choice = random.randrange(0, self.num_experts)
+        # self.expert_choice = random.randrange(0, self.num_experts)
+        self.expert_choice = 1
         self.expert_choices = []
         self.advice = [([None], [None]) for _ in range(self.num_experts)]
 
     def choice_expert_WM(self):
         # return max(enumerate(self.weights), key=lambda x: x[1])[0]
-        return 0
+        return 1
 
     def request(self, request):
         # Check for hit
@@ -332,7 +333,7 @@ class EvictLFU(EvictObj):
                 # If the file request has a higher frequency than a file(s) in the cache
                 # Evict the file and replace the request
                 # If multiple file with the same low freq than choice a random file with low freq
-                file2evict = np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])
+                file2evict = cache[np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])]
                 file2add = request
         return [file2evict], [file2add]
 
