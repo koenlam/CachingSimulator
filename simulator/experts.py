@@ -208,7 +208,8 @@ class ExpertsCacheEvict(CacheObj):
         self.advice = [([None], [None]) for _ in range(self.num_experts)]
 
     def choice_expert_WM(self):
-        return max(enumerate(self.weights), key=lambda x: x[1])[0]
+        # return max(enumerate(self.weights), key=lambda x: x[1])[0]
+        return 0
 
     def request(self, request):
         # Check for hit
@@ -281,11 +282,12 @@ class EvictLRU(EvictObj):
         self.file_recency = np.zeros(self.catalog_size)
         
         for i, file in enumerate(self.cache_init):
-            self.file_recency[file] += i + 1 # Due to the index starting at zero, one it added to differentiate it from the not in the cache
+            self.file_recency[file] = self.MAX_RECENCY - i
 
     def update(self, request):
-        self.file_recency = np.clip(self.file_recency-1, a_min=0, a_max=None)
+        self.file_recency = np.where(self.file_recency < self.file_recency[request], self.file_recency, np.clip(self.file_recency-1, a_min=0, a_max=None))
         self.file_recency[request] = self.MAX_RECENCY
+        assert(np.where(self.file_recency > 0)[0].size == self.cache_size)
 
 
     def ask_advice(self, request, cache):
