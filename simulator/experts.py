@@ -126,12 +126,13 @@ class ExpertCache(CacheObj):
 
 
 class ExpertsCacheNeq(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init, experts, eps=0.01, alg="WM"):
+    def __init__(self, cache_size, catalog_size, cache_init, experts, eps=0.01, alg="WM", init_rnd_expert=True):
         super().__init__(cache_size, catalog_size, cache_init)
         self.name = "Expert Cache without equalization " + str(alg)
         self.num_experts = len(experts)
         self.expert_policies = experts
         self.eps = eps
+        self.init_rnd_expert = init_rnd_expert
 
         self.reset()
 
@@ -141,11 +142,20 @@ class ExpertsCacheNeq(CacheObj):
         self.init_experts()
         
         self.expert_names = list(self.experts.keys())
-        self.weights = dict(zip(self.expert_names, np.ones(self.num_experts)))
+        self.reset_weights()
         self.weights_hist = dict(zip(self.expert_names, ([] for _ in range(self.num_experts))))
         
-        self.cache = self.experts[random.choice(self.expert_names)]
+        assert(self.init_rnd_expert in (True, False))
+        if self.init_rnd_expert is True:
+            self.cache = self.experts[random.choice(self.expert_names)]
+        else:
+            self.cache = self.experts[self.expert_names[0]]
+        
+        
         self.expert_choices = []
+
+    def reset_weights(self):
+        self.weights = dict(zip(self.expert_names, np.ones(self.num_experts)))
 
     
     def init_experts(self):
@@ -156,7 +166,7 @@ class ExpertsCacheNeq(CacheObj):
     def choice_expert(self):
         return self.experts[max(self.weights.items(), key=lambda x: x[1])[0]]
 
-    def request(self, request):
+    def request(self, request, switch=True, weight_reset=False):
         # Check if hit
         is_hit = self.cache.get(request)
 
@@ -172,7 +182,12 @@ class ExpertsCacheNeq(CacheObj):
             self.weights[expert.get_name()] *= (1-self.eps*(1-float(expert.request(request))))
 
         # Choice the expert to follow for the next iteration
-        self.cache = self.choice_expert()
+        if switch is True:
+            self.cache = self.choice_expert()
+            if weight_reset is True:
+                self.reset_weights()
+        elif switch is not False:
+            raise ValueError(f"Switch value ({switch}) is not valid")
 
         return is_hit
 

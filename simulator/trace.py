@@ -1,9 +1,10 @@
+import random
 import numpy as np
 import scipy.io
 import scipy.stats
 
 
-def gen_irm_trace(sample_size, catalog_size, power_law_exp):
+def gen_irm_trace(sample_size, catalog_size, power_law_exp, shuffled=False):
     # Generate a trace with power-law popularity (no timing is used so this is not precisely IRM)
     # M: sample size 
     # N: catalog size
@@ -19,7 +20,10 @@ def gen_irm_trace(sample_size, catalog_size, power_law_exp):
     # Find the index of the sample in the power-law distribution 
     trace = [np.where(sample <= steps)[0][0] for sample in samples] # [0][0] since the result of np.where is an tuple
 
-    return np.array(trace)
+    if shuffled is True:
+        return shuffle_idx(trace, catalog_size)
+    else:
+        return np.array(trace)
 
 def gen_dest_trace(sample_size, num_dest):
     return np.random.randint(low=0, high=num_dest, size=sample_size)
@@ -30,6 +34,31 @@ def gen_power_law_dist(catalog_size, power_law_exp):
     power_law = np.arange(1, catalog_size+1)**(-power_law_exp)
     power_law_dist = np.cumsum(power_law / sum(power_law))
     return power_law_dist
+
+
+def gen_uniform_trace(sample_size, catalog_size):
+    return np.random.randint(low=0, high=catalog_size-1, size=sample_size)
+
+def shuffle_idx(trace, catalog_size):
+    """Shuffle the indices of the trace"""
+
+    shuffled_idx = list(range(catalog_size))
+    random.shuffle(shuffled_idx)
+
+    split_idx = catalog_size // 2
+
+    idx_p1 = shuffled_idx[:split_idx]
+    idx_p2 = shuffled_idx[split_idx:]
+
+    # When the catalog_size is uneven idx_p2 is larger than idx_p1
+    # Here the "additional" elements of idx_p2 is added to idx_p1
+    while len(idx_p2) > len(idx_p1):
+        idx_p1.append(idx_p2[len(idx_p1)])
+
+    swap_dict = dict(zip(idx_p1 + idx_p2, idx_p2 + idx_p1))
+
+    trace_shuffled = [swap_dict[el] for el in trace]
+    return trace_shuffled
 
 
 def shot_noise_model_matlab(shot_duration, shot_rate, simulation_time=1000, par_shape=0.8, par_scale=1.6, par_loc=2):
