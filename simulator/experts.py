@@ -7,6 +7,8 @@ from .cache import CacheObj, LRU, LFU
 
 class ExpertCache(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init, eps=0.01, alg="WM"):
+        # Old version of the ExpertCache using resetting Virtual caches
+        # Replaced with ExpertCacheEvict
         super().__init__(cache_size, catalog_size, cache_init)
         self.name = "ExpertCache " + str(alg)
         self.num_experts = 2
@@ -16,12 +18,13 @@ class ExpertCache(CacheObj):
         self.eps = eps
 
         if alg == "WM":
+            print("Warning: WM is not correctly implemented")
             self.choice_expert = self.choice_expert_WM
         elif alg == "RWM":
             self.choice_expert = self.choice_expert_RWM
         else:
             raise ValueError("Chosen algorithm is invalid")
-
+  
         self.reset()
 
     def reset(self):
@@ -126,19 +129,25 @@ class ExpertCache(CacheObj):
 
 
 class ExpertsCacheNeq(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init, experts, eps=0.01, alg="WM", init_rnd_expert=True):
+    def __init__(self, cache_size, catalog_size, cache_init, experts, eps=0.01, alg="RWM", init_rnd_expert=True):
         super().__init__(cache_size, catalog_size, cache_init)
         self.name = "Expert Cache without equalization " + str(alg)
         self.num_experts = len(experts)
         self.expert_policies = experts
         self.eps = eps
         self.init_rnd_expert = init_rnd_expert
+        self.alg = alg
+
+        if alg not in ["RWM"]:
+            raise ValueError(f"{alg} not implemented")
+        elif alg == "RWM":
+            self.choice_expert = self.choice_expert_RWM
 
         self.reset()
 
     def reset(self):
         super().reset()
-        self.experts = dict()
+        self.experts = dict() # Experts salved as "expert name : expert"
         self.init_experts()
         
         self.expert_names = list(self.experts.keys())
@@ -155,7 +164,7 @@ class ExpertsCacheNeq(CacheObj):
         self.expert_choices = []
 
     def reset_weights(self):
-        self.weights = dict(zip(self.expert_names, np.ones(self.num_experts)))
+        self.weights = dict(zip(self.expert_names, np.ones(self.num_experts))) # Weights saved as "expert name : value"
 
     
     def init_experts(self):
@@ -163,8 +172,13 @@ class ExpertsCacheNeq(CacheObj):
             expert = policy(cache_size=self.cache_size, catalog_size=self.catalog_size, cache_init=self.cache_init)
             self.experts[expert.get_name()] = expert
 
-    def choice_expert(self):
-        return self.experts[max(self.weights.items(), key=lambda x: x[1])[0]]
+    def choice_expert_RWM(self):
+        weights = np.array(list(self.weights.values()))
+        weight_dist = np.cumsum(weights/ np.sum(weights))
+        chosen_expert_idx = np.where(random.random() <= weight_dist)[0][0]
+        chosen_expert_name = self.expert_names[chosen_expert_idx]
+        return self.experts[chosen_expert_name]
+
 
     def request(self, request, switch=True, weight_reset=False):
         # Check if hit
@@ -192,19 +206,21 @@ class ExpertsCacheNeq(CacheObj):
         return is_hit
 
 class ExpertsCacheEvict(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init, eps=0.01, alg="WM"):
+    def __init__(self, cache_size, catalog_size, cache_init, eps=0.01, alg="WM", FTPL_eta=1.0):
         super().__init__(cache_size, catalog_size, cache_init)
         self.name = "Expert Cache using eviction experts " + str(alg)
-        self.expert_policies = (EvictLRU, EvictLFU, EvictFTPL)
+        
+        EvictFTPL_init = lambda catalog_size, cache_init: EvictFTPL(catalog_size, cache_init, FTPL_eta)
+
+        self.expert_policies = (EvictLRU, EvictLFU, EvictFTPL_init)
         self.num_experts = len(self.expert_policies)
         self.eps = eps
+        self.alg = alg
 
-        if alg in ("WM", "WM-HS"):
-            self.alg = alg
+        if alg in ("WM"):
             self.choice_expert = self.choice_expert_WM
-        elif alg in ("RWM-HS", "RWM"):
-            # Weighted majority Hindsight
-            raise ValueError(f"{alg} not implemented")
+        elif alg in ("RWM"):
+            self.choice_expert = self.choice_expert_RWM
         else:
             raise ValueError(f"Unknown algorithm {alg}")
 
@@ -219,24 +235,41 @@ class ExpertsCacheEvict(CacheObj):
         self.cache = self.cache_init.copy()
         self.prev_cache = self.cache_init.copy()
         self.expert_choice = random.randrange(0, self.num_experts)
+        if self.alg == "WM":
+            self.expert_choice = (self.expert_choice,) # WM requires tuples 
         self.expert_choices = []
-        self.advice = [([None], [None]) for _ in range(self.num_experts)]
+        self.advice = [(None, None) for _ in range(self.num_experts)]
 
     def choice_expert_WM(self):
-        return max(enumerate(self.weights), key=lambda x: x[1])[0]
+        advice_set = set(self.advice)
+        advice_weights = []
+
+        for advice in advice_set:
+            weight = 0
+            experts = []
+            for i, expert_advice in enumerate(self.advice):
+                if advice == expert_advice:
+                    weight += self.weights[i]
+                    experts.append(i)
+            advice_weights.append((tuple(experts), weight))
+        
+        return max(advice_weights, key=lambda x: x[1])[0]
+        
+
+    def choice_expert_RWM(self):
+        weight_dist = np.cumsum(self.weights / np.sum(self.weights))
+        expert_idx = np.where(np.random.random() <= weight_dist)[0][0]
+        return expert_idx
 
     def request(self, request):
         # Check for hit
         is_hit = request in self.cache
 
         # Adjust weights
-        if self.alg == "WM":
-            if not is_hit:
-                self.weights[self.expert_choice] *= (1-self.eps)
-        elif self.alg == "WM-HS":
-            for expert, (files2evict, files2add) in enumerate(self.advice):
-                if not((request in self.prev_cache and request not in files2evict) \
-                    or (request not in self.prev_cache and request in files2add)):
+        if self.alg in ("WM", "RWM"):
+            for expert, (file2evict, file2add) in enumerate(self.advice):
+                if not((request in self.prev_cache and request != file2evict) \
+                    or (request not in self.prev_cache and request == file2add)):
                     self.weights[expert] *= (1-self.eps)
 
         else:
@@ -251,23 +284,25 @@ class ExpertsCacheEvict(CacheObj):
         # Choice expert
         self.expert_choice = self.choice_expert()
         self.advice = [expert.ask_advice(request, self.cache) for expert in self.experts]
-        files2evict, files2add = self.advice[self.expert_choice]
 
-        # if type(files2evict) != np.ndarray:
-        #     self.cache = np.where(self.cache==files2evict, files2add, self.cache)
-        # else:
+        if isinstance(self.expert_choice, tuple):
+            # Algorithm choses multiple experts with the same advice (WM)
+            # Get the advice of the first one (doesn't matte which one is chosen)
+             file2evict, file2add = self.advice[self.expert_choice[0]] 
+        else:
+            file2evict, file2add = self.advice[self.expert_choice]
 
 
         # Update cache
         self.prev_cache = self.cache.copy()
-        for file2evict, file2add in zip(files2evict, files2add):
-            self.cache = np.where(self.cache==file2evict, file2add, self.cache)
+
+        self.cache = np.where(self.cache==file2evict, file2add, self.cache)
 
         if self.cache.dtype != np.int64:
             # print("Dtype changed")
             # TODO: Investigate why the dtype sometimes changes
             self.cache = self.cache.astype(np.int64)
-
+            
         assert(self.cache.size == self.cache_size)
         assert(self.cache.dtype == np.int64)
 
@@ -316,7 +351,7 @@ class EvictLRU(EvictObj):
 
         # Update the internal values
         self.update(request)
-        return [file2evict], [file2add]
+        return file2evict, file2add
 
 class EvictLFU(EvictObj):
     def __init__(self, catalog_size, cache_init):
@@ -348,12 +383,13 @@ class EvictLFU(EvictObj):
                 # If multiple file with the same low freq than choice a random file with low freq
                 file2evict = cache[np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])]
                 file2add = request
-        return [file2evict], [file2add]
+        return file2evict, file2add
 
 class EvictFTPL(EvictObj):
-    def __init__(self, catalog_size, cache_init):
+    def __init__(self, catalog_size, cache_init, eta=1.0):
         super().__init__(catalog_size, cache_init)
         self.name = "FTPL"
+        self.eta = eta
         self.reset()
 
     def reset(self):
@@ -366,15 +402,22 @@ class EvictFTPL(EvictObj):
         #Update cache
         self.update(request)
 
-        y = self.file_freq + np.random.randn(self.file_freq.size)
-        new_cache = np.argsort(y)[-self.cache_size:]
+        file2evict = None
+        file2add = None
 
-        file2evict = np.setdiff1d(cache, new_cache)
-        file2add = np.setdiff1d(new_cache, cache)
+        if request not in cache:
+            file_freq_perturbed = self.file_freq + self.eta*np.random.randn(self.file_freq.size)
 
-        file2evict = file2evict if file2evict.size else [None]
-        file2add = file2add if file2add.size else [None]
+            # Look for the file to evict
+            cache_file_freq = file_freq_perturbed[cache]
+            cache_file_freq_min = np.min(cache_file_freq)
 
+            if file_freq_perturbed[request] > cache_file_freq_min:
+                # If the file request has a higher frequency than a file(s) in the cache
+                # Evict the file and replace the request
+                # If multiple file with the same low freq than choice a random file with low freq
+                file2evict = cache[np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])]
+                file2add = request
         return file2evict, file2add
 
 

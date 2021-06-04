@@ -220,9 +220,10 @@ class BestDynamicCache(CacheObj):
 
 
 class FTPL(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init):
+    def __init__(self, cache_size, catalog_size, cache_init, eta=1.0):
         super().__init__(cache_size, catalog_size, cache_init)
         self.file_freq = np.ones(self.catalog_size)
+        self.eta = 1.0
         self.name = "FTPL"
 
     def request(self, request):
@@ -231,6 +232,6 @@ class FTPL(CacheObj):
 
         # Update cache
         self.file_freq[request] += 1
-        y = self.file_freq + np.random.randn(self.file_freq.size)
+        y = self.file_freq + self.eta*np.random.randn(self.file_freq.size)
         self.cache = np.argsort(y)[-self.cache_size:]
         return is_hit
