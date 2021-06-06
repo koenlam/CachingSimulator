@@ -60,6 +60,17 @@ def shuffle_idx(trace, catalog_size):
     trace_shuffled = [swap_dict[el] for el in trace]
     return trace_shuffled
 
+def random_replacement_model(sample_size, catalog_size, power_law_exp, shuffled=False, replacement_rate=4):
+    trace = gen_irm_trace(sample_size, catalog_size, power_law_exp)
+    for i, _ in enumerate(trace):
+        if random.random() <= 1/replacement_rate: # Swap according to the replacement rate
+            i1 = random.randrange(catalog_size-5) + 5
+            i2 = i1 - 5 
+            new_trace = trace.copy()
+            new_trace[i:] = np.where(trace == i1, i2, trace)[i:]
+            trace = new_trace
+    return trace if shuffled is False else shuffle_idx(trace, catalog_size)
+
 
 def shot_noise_model_matlab(shot_duration, shot_rate, simulation_time=1000, par_shape=0.8, par_scale=1.6, par_loc=2):
     nof_shots = int(shot_rate*simulation_time)

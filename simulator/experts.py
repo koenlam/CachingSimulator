@@ -18,7 +18,7 @@ class ExpertCache(CacheObj):
         self.eps = eps
 
         if alg == "WM":
-            print("Warning: WM is not correctly implemented")
+            print("ExpertCache: Warning: WM is not correctly implemented")
             self.choice_expert = self.choice_expert_WM
         elif alg == "RWM":
             self.choice_expert = self.choice_expert_RWM
@@ -137,11 +137,11 @@ class ExpertsCacheNeq(CacheObj):
         self.eps = eps
         self.init_rnd_expert = init_rnd_expert
         self.alg = alg
-
-        if alg not in ["RWM"]:
-            raise ValueError(f"{alg} not implemented")
-        elif alg == "RWM":
+            
+        if alg in ("RWM", "Hedge"):
             self.choice_expert = self.choice_expert_RWM
+        else:
+            raise ValueError(f"{alg} not implemented")
 
         self.reset()
 
@@ -192,8 +192,14 @@ class ExpertsCacheNeq(CacheObj):
 
 
         # Adjust weights and update caches
-        for expert in self.experts.values():
-            self.weights[expert.get_name()] *= (1-self.eps*(1-float(expert.request(request))))
+        if self.alg in ("RWM"):
+            for expert in self.experts.values():
+                self.weights[expert.get_name()] *= (1-self.eps*(1-float(expert.request(request))))
+        elif self.alg == "Hedge":
+            for expert in self.experts.values():
+                loss = 1-float(expert.request(request))
+                self.weights[expert.get_name()] *= np.exp(-self.eps*loss)
+
 
         # Choice the expert to follow for the next iteration
         if switch is True:
@@ -219,7 +225,7 @@ class ExpertsCacheEvict(CacheObj):
 
         if alg in ("WM"):
             self.choice_expert = self.choice_expert_WM
-        elif alg in ("RWM"):
+        elif alg in ("RWM", "Hedge"):
             self.choice_expert = self.choice_expert_RWM
         else:
             raise ValueError(f"Unknown algorithm {alg}")
@@ -271,6 +277,12 @@ class ExpertsCacheEvict(CacheObj):
                 if not((request in self.prev_cache and request != file2evict) \
                     or (request not in self.prev_cache and request == file2add)):
                     self.weights[expert] *= (1-self.eps)
+        elif self.alg == "Hedge":
+            for expert, (file2evict, file2add) in enumerate(self.advice):
+                if not((request in self.prev_cache and request != file2evict) \
+                    or (request not in self.prev_cache and request == file2add)):
+                    loss = 1 # Static loss of 1 for cache miss in hindsight
+                    self.weights[expert] *= np.exp(-self.eps * loss)
 
         else:
             raise ValueError(f"Request: algorithm unknown")
