@@ -67,7 +67,8 @@ def random_replacement_model(sample_size, catalog_size, power_law_exp, shuffled=
             i1 = random.randrange(catalog_size-5) + 5
             i2 = i1 - 5 
             new_trace = trace.copy()
-            new_trace[i:] = np.where(trace == i1, i2, trace)[i:]
+            new_trace[i:] = np.where(trace == i1, i2, new_trace)[i:]
+            new_trace[i:] = np.where(trace == i2, i1, new_trace)[i:]
             trace = new_trace
     return trace if shuffled is False else shuffle_idx(trace, catalog_size)
 
