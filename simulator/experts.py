@@ -138,7 +138,7 @@ class ExpertsCacheNeq(CacheObj):
         self.init_rnd_expert = init_rnd_expert
         self.alg = alg
             
-        if alg in ("RWM", "Hedge"):
+        if alg in ("RWM", "Hedge", "Hedge_loss"):
             self.choice_expert = self.choice_expert_RWM
         else:
             raise ValueError(f"{alg} not implemented")
@@ -159,6 +159,9 @@ class ExpertsCacheNeq(CacheObj):
             self.cache = self.experts[random.choice(self.expert_names)]
         else:
             self.cache = self.experts[self.expert_names[0]]
+
+        if self.alg == "Hedge_loss":
+            self.loss = np.zeros(self.num_experts)
         
         
         self.expert_choices = []
@@ -180,7 +183,7 @@ class ExpertsCacheNeq(CacheObj):
         return self.experts[chosen_expert_name]
 
 
-    def request(self, request, switch=True, weight_reset=False):
+    def request(self, request, at_switch=True, weight_reset=False):
         # Check if hit
         is_hit = self.cache.get(request)
 
@@ -199,15 +202,23 @@ class ExpertsCacheNeq(CacheObj):
             for expert in self.experts.values():
                 loss = 1-float(expert.request(request))
                 self.weights[expert.get_name()] *= np.exp(-self.eps*loss)
+        elif self.alg == "Hedge_loss":
+           for i, expert in enumerate(self.experts.values()):
+                loss = 1-float(expert.request(request))
+                self.loss[i] += loss
 
 
         # Choice the expert to follow for the next iteration
-        if switch is True:
+        if at_switch is True:
+            if self.alg == "Hedge_loss":
+                for i, expert in enumerate(self.experts.values()):
+                    self.weights[expert.get_name()] *= np.exp(-self.eps*self.loss[i])
+                self.loss = np.zeros(self.num_experts)
             self.cache = self.choice_expert()
             if weight_reset is True:
                 self.reset_weights()
-        elif switch is not False:
-            raise ValueError(f"Switch value ({switch}) is not valid")
+        elif at_switch is not False:
+            raise ValueError(f"Switch value ({at_switch}) is not valid")
 
         return is_hit
 
