@@ -147,7 +147,7 @@ class ExpertsCacheNeq(CacheObj):
 
     def reset(self):
         super().reset()
-        self.experts = dict() # Experts salved as "expert name : expert"
+        self.experts = dict() # Experts saved as "expert name : expert"
         self.init_experts()
         
         self.expert_names = list(self.experts.keys())

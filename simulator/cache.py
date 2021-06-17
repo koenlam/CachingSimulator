@@ -6,6 +6,7 @@ from tqdm.auto import tqdm
 
 from .tools import convert2array
 
+DEFAULT_SWITCHING_COST = 0.5
 
 def init_cache(cache_size, catalog_size):
     """Initialize random cache"""
@@ -33,23 +34,68 @@ def gen_best_static(trace, cache_size):
 
 
 class CacheObj:
-    def __init__(self, cache_size, catalog_size, cache_init):
+    def __init__(self, cache_size, catalog_size, cache_init, switching_cost=DEFAULT_SWITCHING_COST, metric="hit"):
         self.cache_size = cache_size
         self.catalog_size = catalog_size
         self.cache_init = cache_init
+        self.switching_cost = switching_cost
+        self.metric = metric
 
-        self.cache = cache_init.copy()
-        self.hits = []
         self.name = "CacheObj"
+
 
     def reset(self):
         self.cache = self.cache_init.copy()
+        self.cache_prev = self.cache.copy()
         self.hits = []
+        self.reward_sw = [] # Reward + cache switching cost
+        self.get_cache_diff = self.get_cache_diff_whole_vec
+
+
+    def update_perf_metrics(self, is_hit, cache_switching_cost="default"):
+
+        self.hits.append(is_hit)
+
+        if self.metric == "switch": # Calculating cache switching cost is slow
+            if cache_switching_cost == "default":
+                cache_switching_cost = self.get_cache_switching_cost()
+            self.reward_sw.append(float(is_hit) - cache_switching_cost)
+        elif self.metric == "hit":
+            pass
+        else:
+            raise ValueError(f"Unknown metric {self.metric}")
+        self.cache_prev = self.cache.copy()
+
+
+    def get_cache_diff_file_idx(self, cache, cache_prev):
+        """Get the difference between caches when the cache consists of file IDS"""
+        in_curr_not_prev = np.setdiff1d(cache, cache_prev)
+        in_prev_not_curr = np.setdiff1d(cache_prev, cache)
+
+        in_curr_not_prev_vec = np.ones(in_curr_not_prev.shape)
+        in_prev_not_curr_vec = -np.ones(in_prev_not_curr.shape)
+
+        return np.concatenate((in_curr_not_prev_vec, in_prev_not_curr_vec))
+
+
+    def get_cache_diff_whole_vec(self, cache, cache_prev):
+        """Get the difference between caches when the files in the caches are encoded with 1 in cache and 0 not in cache """
+        return cache - cache_prev # Vector with 1 for elements in cache and not in cache_prev -1 for elements in cache_prev and not in cache
+
 
     def get(self, request):
         """Return whether or not a request is in the cache. Doesn't update the cache"""
         return request in self.cache
 
+    def get_cache_switching_cost(self, cache=None, cache_prev=None, ord=1):
+        if cache is None:
+            cache = self.cache
+        if cache_prev is None:
+            cache_prev = self.cache_prev
+        # 1-norm diff between cache and prev cache
+        # switching cost /  2 due to the difference being counted twice
+        return (self.switching_cost / 2) * np.linalg.norm(self.get_cache_diff(cache, cache_prev), ord=ord) 
+        
     def get_cache(self):
         return self.cache
         
@@ -70,10 +116,11 @@ class CacheStatic(CacheObj):
     def __init__(self, cache_size, catalog_size, cache):
         super().__init__(cache_size, catalog_size, cache)
         self.name = "CacheStatic"
+        self.reset()
 
     def request(self, request):
         is_hit = self.cache[request]
-        self.hits.append(is_hit)
+        self.update_perf_metrics(is_hit, cache_switching_cost=0)
         return is_hit
     
     def get_cache(self):
@@ -88,6 +135,11 @@ class LRU(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init):
         super().__init__(cache_size, catalog_size, convert2array(cache_init))
         self.name = "LRU"
+        self.reset()
+
+    def reset(self):
+        super().reset()
+        self.get_cache_diff = self.get_cache_diff_file_idx
     
     def request(self, request):
         is_hit = False
@@ -101,19 +153,21 @@ class LRU(CacheObj):
             self.cache = np.roll(self.cache, shift=1)
             self.cache[0] = request
 
-        self.hits.append(is_hit)
+        self.update_perf_metrics(is_hit)
         return is_hit
 
 
 class LFU(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init):
         super().__init__(cache_size, catalog_size, convert2array(cache_init))
-        self.file_freq = np.ones(self.catalog_size)
         self.name = "LFU"
+        self.reset()
 
     def reset(self):
         super().reset()
         self.file_freq = np.ones(self.catalog_size)
+        self.get_cache_diff = self.get_cache_diff_file_idx
+
 
     def request(self, request):
         is_hit = False
@@ -130,7 +184,7 @@ class LFU(CacheObj):
                     np.where(cache_file_freq == cache_file_freq_min)[0])
                 self.cache[cache_file_freq_min_idx] = request
 
-        self.hits.append(is_hit)
+        self.update_perf_metrics(is_hit)
         return is_hit
 
 
@@ -145,6 +199,7 @@ class OGD(CacheObj):
         else:
             self.eta0 = eta0
         self.name = "OGD"
+        self.reset()
 
     def get(self, request):
         return self.cache[request]
@@ -155,7 +210,7 @@ class OGD(CacheObj):
         self.cache[request] = self.cache[request] + self.eta0*gradient
         self.cache = self._grad_proj(self.cache, self.cache_size, request)
 
-        self.hits.append(is_hit)
+        self.update_perf_metrics(is_hit)
         return is_hit
 
     @staticmethod
@@ -208,6 +263,7 @@ class BestDynamicCache(CacheObj):
         super().__init__(cache_size, catalog_size, np.zeros(cache_size))
         self.file_freq = np.ones(self.catalog_size)
         self.name = "Best Dynamic"
+        self.reset()
 
     def request(self, request):
         # Update cache
@@ -215,7 +271,7 @@ class BestDynamicCache(CacheObj):
         self.cache = np.argsort(self.file_freq)[-self.cache_size:]
 
         is_hit = True if request in self.cache else False
-        self.hits.append(is_hit)
+        self.update_perf_metrics(is_hit)
         return is_hit
 
 
@@ -223,15 +279,20 @@ class FTPL(CacheObj):
     def __init__(self, cache_size, catalog_size, cache_init, eta=1.0):
         super().__init__(cache_size, catalog_size, cache_init)
         self.file_freq = np.ones(self.catalog_size)
-        self.eta = 1.0
+        self.eta = eta
         self.name = "FTPL"
+        self.reset()
+
+    def reset(self):
+        super().reset()
+        self.get_cache_diff = self.get_cache_diff_file_idx
 
     def request(self, request):
         is_hit = True if request in self.cache else False
-        self.hits.append(is_hit)
 
         # Update cache
         self.file_freq[request] += 1
         y = self.file_freq + self.eta*np.random.randn(self.file_freq.size)
         self.cache = np.argsort(y)[-self.cache_size:]
+        self.update_perf_metrics(is_hit)
         return is_hit
