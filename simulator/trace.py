@@ -31,7 +31,7 @@ def gen_dest_trace(sample_size, num_dest):
 
 def gen_power_law_dist(catalog_size, power_law_exp):
     # Create power_law distribution
-    power_law = np.arange(1, catalog_size+1)**(-power_law_exp)
+    power_law = np.arange(1, catalog_size+1, dtype=float)**(-power_law_exp)
     power_law_dist = np.cumsum(power_law / sum(power_law))
     return power_law_dist
 

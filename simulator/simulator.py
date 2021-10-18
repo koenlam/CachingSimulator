@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .cache import FTPL, init_cache, LRU, LFU, gen_best_static, CacheStatic, OGD
+from .cache import FTPL, init_cache, LRU, LFU, gen_best_static, CacheStatic, OGA
 from .experts import ExpertCache, ExpertsCacheNeq
 from .timer import Timer
 
@@ -28,13 +28,13 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     cache_LFU = LFU(cache_size, catalog_size, cache_init)
 
     cache_BH = CacheStatic(cache_size, catalog_size, gen_best_static(trace, cache_size))
-    cache_OGD = OGD(cache_size, catalog_size, sample_size)
+    cache_OGA = OGA(cache_size, catalog_size, sample_size)
     cache_EP_WM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.01, alg="WM")
     cache_EP_RWM = ExpertCache(cache_size, catalog_size, cache_init, eps= 0.01, alg="RWM")
     cache_FTPL = FTPL(cache_size, catalog_size, cache_init)
 
-    OGD_init = lambda cache_size, catalog_size, cache_init: OGD(cache_size, catalog_size, sample_size)
-    experts = (LRU, LFU, OGD_init, FTPL)
+    OGA_init = lambda cache_size, catalog_size, cache_init: OGA(cache_size, catalog_size, sample_size)
+    experts = (LRU, LFU, OGA_init, FTPL)
 
     cache_EP_neq = ExpertsCacheNeq(cache_size, catalog_size, cache_init, experts)
 
@@ -60,7 +60,7 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
     timer.toc()
 
     print("OGD")
-    cache_OGD.simulate(trace)
+    cache_OGA.simulate(trace)
     timer.toc()
 
     print("FTPL")
@@ -75,4 +75,4 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
         print("Warning: plot hitrates has be deprecated")
 
    
-    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGD, cache_FTPL, cache_EP_neq
+    return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGA, cache_FTPL, cache_EP_neq

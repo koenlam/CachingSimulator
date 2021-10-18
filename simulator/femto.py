@@ -130,7 +130,7 @@ class BSA(FemtoObj):
             caches_init[i] = c_size * cache_init / np.sum(cache_init)
             # caches_init[i] = c_size * np.ones(catalog_size) / caches_init[i].size
 
-        super().__init__(cache_sizes, catalog_size, caches_init, OGD, utilities, edges)
+        super().__init__(cache_sizes, catalog_size, caches_init, OGA, utilities, edges)
         self.sample_size = sample_size
 
         self.eta = np.sqrt(2*np.mean(cache_sizes) * self.num_cache / np.max(np.sum(edges, axis=0)) / sample_size ) / np.max(utilities)

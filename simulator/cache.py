@@ -188,17 +188,27 @@ class LFU(CacheObj):
         return is_hit
 
 
-class OGD(CacheObj):
+class OGA(CacheObj):
     def __init__(self, cache_size, catalog_size, sample_size, cache_init=None, eta0=None):
+        # OGA uses a different cache representation than the other cache objects
+        # Other cache objects use an list of objects id's
+        # OGA uses an array of the whole catalog size with 1 if it is in the cache, 0 if it is not, and e.g. 0.5 if it is partially in the cache
+        # Therefore, the cache init has to be converted 
         if cache_init is None:
-            cache_init = np.ones(catalog_size) * (cache_size / catalog_size)
-        super().__init__(cache_size, catalog_size, cache_init)
+            OGA_cache_init = np.ones(catalog_size) * (cache_size / catalog_size)
+        elif len(cache_init) == cache_size: 
+            OGA_cache_init = np.zeros(catalog_size)
+            OGA_cache_init[cache_init] = 1
+        else:
+            OGA_cache_init = cache_init
+
+        super().__init__(cache_size, catalog_size, OGA_cache_init)
 
         if eta0 is None:
             self.eta0 = np.sqrt(2*cache_size/sample_size)
         else:
             self.eta0 = eta0
-        self.name = "OGD"
+        self.name = "OGA"
         self.reset()
 
     def get(self, request):
@@ -217,7 +227,8 @@ class OGD(CacheObj):
     def _grad_proj(cache, cache_size, request):
         cache_new = cache.copy()
         while True:
-            rho = ( np.sum(cache_new) - cache_size  ) / np.count_nonzero(cache_new)
+            # Calculate the how much each cache value has to be lowered such that the size of the cache the same as cache_size
+            rho = ( np.sum(cache_new) - cache_size  ) / np.count_nonzero(cache_new) 
             cache_new[cache_new > 0] = cache_new[cache_new > 0] - rho
             negative_values = np.where(cache_new < 0)[0]
             if len(negative_values) == 0:
@@ -244,18 +255,27 @@ class OGD(CacheObj):
         return cache_new
 
 
-# class BestDynamicCache(CacheStatic):
-#     def __init__(self, cache_size, catalog_size):
-#         super().__init__(cache_size, catalog_size, np.zeros(cache_size))
-#         self.name = "Best Dynamic"
+class DiscreteOGA(CacheObj):
+    def __init__(self, cache_size, catalog_size, sample_size, cache_init, eta0=None):
+        super().__init__(cache_size, catalog_size, cache_init)
+        self.OGA = OGA(cache_size, catalog_size, sample_size, cache_init=cache_init, eta0=eta0)
+
+        self.name = "Discrete OGA"
+        self.reset()
+
+    def request(self, request, gradient=1):
+        is_hit = True if request in self.cache else False
+
+        # Update OGA
+        self.OGA.request(request, gradient)
+
+        if not is_hit: # Cache miss
+            OGA_file_importance = self.OGA.cache
+            self.cache = np.argsort(OGA_file_importance)[-self.cache_size:]
+        self.update_perf_metrics(is_hit)
+        return is_hit
 
 
-#     def simulate(self, trace):
-#         N = len(trace)
-#         for i, request in tqdm(enumerate(trace), total=N):
-#             # Dynamically adjust cache 
-#             self.cache = gen_best_static(trace[:i+1], self.cache_size)
-#             self.request(request)   
 
 
 class BestDynamicCache(CacheObj):
