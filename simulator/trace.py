@@ -156,11 +156,33 @@ def parse_trace(mat_file : dict):
     return trace, catalog_size, sample_size
     
 
+
+def get_movielens_trace():
+    movielens_loc = r"./traces/MovieLens1M_ratings.dat"
+
+    movielens_data = {"UserID": [], "MovieID": [], "Rating": [], "Timestamp": []} # UserID::MovieID::Rating::Timestamp
+
+    with open(movielens_loc) as f:
+        movielens_raw = f.read().strip().split("\n")
+
+        for line in movielens_raw:
+            UserID, MovieID, Rating, Timestamp = line.split("::")
+            movielens_data["UserID"].append(UserID)
+            movielens_data["MovieID"].append(MovieID)
+            movielens_data["Rating"].append(Rating)
+            movielens_data["Timestamp"].append(Timestamp)
+    return np.array(movielens_data["MovieID"], dtype=int)
+
+
+
+
+
+
+
 if __name__ == "__main__":
     # t = gen_irm_trace(100, 100, 0.8)
     # print(t)
     # yt = get_yt_trace()
 
-    shot_noise_model_matlab(shot_duration=100, shot_rate=0.1, simulation_time=1000)
-
-    
+    # shot_noise_model_matlab(shot_duration=100, shot_rate=0.1, simulation_time=1000)
+    print(get_movielens_trace())
