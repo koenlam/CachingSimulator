@@ -107,6 +107,7 @@ class CacheObj:
         N = len(trace)
         for i, request in tqdm(enumerate(trace), total=N):
             self.request(request)
+        return self.hits
 
     def get_name(self):
         return self.name

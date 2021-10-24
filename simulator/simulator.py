@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from tqdm.auto import tqdm
+
 from .cache import FTPL, init_cache, LRU, LFU, gen_best_static, CacheStatic, OGA
 from .experts import ExpertCache, ExpertsCacheNeq
 from .timer import Timer
@@ -76,3 +78,22 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
 
    
     return cache_LRU, cache_LFU, cache_BH, cache_EP_WM, cache_EP_RWM, cache_OGA, cache_FTPL, cache_EP_neq
+
+
+def simulate_caches_parallel(caches, trace):
+    """ Simulates in parrallel using pathos multiprocessing
+        Doesn't update the orginal cache
+        Only returns the hits
+    """
+    import pathos.multiprocessing
+    num_caches = len(caches)
+    with tqdm(total=num_caches) as pbar:
+        with pathos.multiprocessing.ProcessPool() as pool:
+            futures = []
+            for cache in caches:
+                future = pool.apipe(cache.simulate, trace)
+                futures.append(future)
+            for future in futures: # Kind of hacky progress bar (It can happen that the next cache is already done simulating)
+                future.wait()
+                pbar.update(1)  
+    return [future.get() for future in futures] # Return the hits of each cache
