@@ -66,12 +66,14 @@ def random_replacement_model(sample_size, catalog_size, power_law_exp, shuffled=
         if random.random() <= 1/replacement_rate: # Swap according to the replacement rate
             i1 = random.randrange(catalog_size-5) + 5
             i2 = i1 - 5 
-            new_trace = trace.copy()
-            new_trace[i:] = np.where(trace == i1, i2, new_trace)[i:]
-            new_trace[i:] = np.where(trace == i2, i1, new_trace)[i:]
-            trace = new_trace
-    return trace if shuffled is False else shuffle_idx(trace, catalog_size)
 
+            i1_idx = np.where(trace[i:] == i1)[0]
+            i2_idx = np.where(trace[i:] == i2)[0]
+
+            trace[i+i1_idx] = i2
+            trace[i+i2_idx] = i1
+
+    return trace if shuffled is False else shuffle_idx(trace, catalog_size)
 
 def shot_noise_model_matlab(shot_duration, shot_rate, simulation_time=1000, par_shape=0.8, par_scale=1.6, par_loc=2):
     nof_shots = int(shot_rate*simulation_time)
@@ -158,6 +160,7 @@ def parse_trace(mat_file : dict):
 
 
 def get_movielens_trace():
+    # MovieLens: https://grouplens.org/datasets/movielens/
     movielens_loc = r"./traces/MovieLens1M_ratings.dat"
 
     movielens_data = {"UserID": [], "MovieID": [], "Rating": [], "Timestamp": []} # UserID::MovieID::Rating::Timestamp
