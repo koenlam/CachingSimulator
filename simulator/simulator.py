@@ -9,15 +9,17 @@ from .timer import Timer
 
 
 
-def plot_comp(*caches):
+def plot_comp(*caches, legend=True):
     t = np.arange(1, len(caches[0].get_hitrate())+1)
     for cache in caches:
         plt.plot(t, cache.get_hitrate())
     
-    plt.xlabel("time")
-    plt.ylabel("avg hits")
+    plt.xlabel("Time")
+    plt.ylabel("Avg hits")
 #     plt.ylim([0, 0.8])
-    plt.legend([cache.get_name() for cache in caches])
+    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0), useMathText=True)
+    if legend:
+        plt.legend([cache.get_name() for cache in caches])
 
 def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None, plot_hitrates=True):
     timer = Timer()
@@ -81,9 +83,9 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
 
 
 def simulate_caches_parallel(caches, trace):
-    """ Simulates in parrallel using pathos multiprocessing
-        Doesn't update the orginal cache
-        Only returns the hits
+    """ Simulates in parallel using pathos multiprocessing
+        Doesn't update the original cache, e.g, the cache configuration
+        ONLY the hits are updated 
     """
     import pathos.multiprocessing
     num_caches = len(caches)
@@ -96,4 +98,24 @@ def simulate_caches_parallel(caches, trace):
             for future in futures: # Kind of hacky progress bar (It can happen that the next cache is already done simulating)
                 future.wait()
                 pbar.update(1)  
-    return [future.get() for future in futures] # Return the hits of each cache
+    
+    # Save hits into the cache objects
+    for cache, result in zip(caches, futures):
+        cache.hits = result.get()
+
+
+def simulate_caches(caches, trace, separate_simulations=False):
+    """ Simulates the caches with the trace
+        Also updates the cache objects
+        Option to simulate each cache seperately
+    """
+    if not separate_simulations:
+        for request in tqdm(trace, total=len(trace)):
+            for cache in caches:
+                cache.request(request) 
+    else:
+        for cache in caches:
+            print(cache.name)
+            for request in tqdm(trace, total=len(trace)):
+                cache.request(request)
+            print()

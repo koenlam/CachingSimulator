@@ -178,6 +178,8 @@ def get_movielens_trace():
 
 
 
+def combine_trace(*traces):
+    return np.concatenate(traces)
 
 
 
