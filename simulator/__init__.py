@@ -5,4 +5,5 @@ from .timer import *
 from .verify import *
 from .femto import *
 from .experts import *
+from .experts2 import *
 from .latex_figures import *

@@ -112,12 +112,26 @@ class CacheObj:
     def get_name(self):
         return self.name
 
+    def get_ranking(self):
+        """ Returns the ranking of the cache contents    
+        """ 
+        raise NotImplementedError("get_ranking not implemented")
+
 
 class CacheStatic(CacheObj):
     def __init__(self, cache_size, catalog_size, cache):
         super().__init__(cache_size, catalog_size, cache)
         self.name = "CacheStatic"
         self.reset()
+
+    def get_ranking(self):
+        ranking = np.zeros(self.catalog_size)
+        val = np.sum(np.arange(1, self.cache_size+1)) / self.cache_size 
+        for c in self.cache:
+            ranking[c] =  val 
+
+        assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
+        return ranking # Ranks each content in the cache as equally important and sum(ranking)  = sum(1 + 2 + ... + self.cache_size)
 
     def request(self, request):
         is_hit = self.cache[request]
@@ -129,7 +143,7 @@ class CacheStatic(CacheObj):
             return np.array([key for key in self.cache if self.cache[key] > 0])
         else:
             return super().get_cache()
-
+    
 
 
 class LRU(CacheObj):
@@ -141,6 +155,14 @@ class LRU(CacheObj):
     def reset(self):
         super().reset()
         self.get_cache_diff = self.get_cache_diff_file_idx
+
+    def get_ranking(self):
+        ranking = np.zeros(self.catalog_size)
+
+        for i, c in enumerate(self.cache):
+            ranking[c] =  (self.cache_size - i)
+        assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
+        return ranking
     
     def request(self, request):
         is_hit = False
@@ -168,6 +190,19 @@ class LFU(CacheObj):
         super().reset()
         self.file_freq = np.ones(self.catalog_size)
         self.get_cache_diff = self.get_cache_diff_file_idx
+
+    def get_ranking(self):
+        ranking = np.zeros(self.catalog_size)
+
+        cache_file_freq = self.file_freq[self.cache]
+        cache_sorted = self.cache[np.argsort(cache_file_freq)] # Most important files at the end
+
+        for i, c in enumerate(cache_sorted):
+            ranking[c] = i+1 # 1 for the least important and self.cache_size for the most important
+        
+        assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
+        return ranking
+
 
 
     def request(self, request):
@@ -263,6 +298,15 @@ class DiscreteOGA(CacheObj):
 
         self.name = "Discrete OGA"
         self.reset()
+
+    def get_ranking(self):
+        ranking = np.zeros(self.catalog_size)
+
+        for i, c in enumerate(self.cache):
+            ranking[c] = i+1 # 1 for the least important and self.cache_size for the most important
+        
+        assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
+        return ranking
 
     def request(self, request, gradient=1):
         is_hit = True if request in self.cache else False
