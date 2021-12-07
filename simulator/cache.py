@@ -107,7 +107,8 @@ class CacheObj:
         N = len(trace)
         for i, request in tqdm(enumerate(trace), total=N):
             self.request(request)
-        return self.hits
+        # return self.hits
+        return self
 
     def get_name(self):
         return self.name
@@ -120,6 +121,14 @@ class CacheObj:
 
 class CacheStatic(CacheObj):
     def __init__(self, cache_size, catalog_size, cache):
+        """ CacheStatic uses an internal datastructure of defaultdict for faster lookup
+        """
+        if not isinstance(cache, defaultdict):
+            cache_dict = defaultdict(lambda: 0)
+            for file in cache:
+                cache_dict[file] = 1
+            cache = cache_dict
+
         super().__init__(cache_size, catalog_size, cache)
         self.name = "CacheStatic"
         self.reset()
@@ -127,8 +136,9 @@ class CacheStatic(CacheObj):
     def get_ranking(self):
         ranking = np.zeros(self.catalog_size)
         val = np.sum(np.arange(1, self.cache_size+1)) / self.cache_size 
-        for c in self.cache:
-            ranking[c] =  val 
+        for c in self.cache.keys():
+            if self.cache[c] == 1:
+                ranking[c] =  val 
 
         assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
         return ranking # Ranks each content in the cache as equally important and sum(ranking)  = sum(1 + 2 + ... + self.cache_size)
@@ -215,7 +225,7 @@ class LFU(CacheObj):
             cache_file_freq = self.file_freq[self.cache]
             cache_file_freq_min = np.min(cache_file_freq)
 
-            if self.file_freq[request] > cache_file_freq_min:
+            if self.file_freq[request] >= cache_file_freq_min:
                 cache_file_freq_min_idx = np.random.choice(
                     np.where(cache_file_freq == cache_file_freq_min)[0])
                 self.cache[cache_file_freq_min_idx] = request
@@ -225,7 +235,7 @@ class LFU(CacheObj):
 
 
 class OGA(CacheObj):
-    def __init__(self, cache_size, catalog_size, sample_size, cache_init=None, eta0=None):
+    def __init__(self, cache_size, catalog_size, sample_size=None, cache_init=None, eta0=None):
         # OGA uses a different cache representation than the other cache objects
         # Other cache objects use an list of objects id's
         # OGA uses an array of the whole catalog size with 1 if it is in the cache, 0 if it is not, and e.g. 0.5 if it is partially in the cache
@@ -241,7 +251,10 @@ class OGA(CacheObj):
         super().__init__(cache_size, catalog_size, OGA_cache_init)
 
         if eta0 is None:
-            self.eta0 = np.sqrt(2*cache_size/sample_size)
+            if sample_size is not None:
+                self.eta0 = np.sqrt(2*cache_size/sample_size)
+            else:
+                self.eta0 = 0.1
         else:
             self.eta0 = eta0
         self.name = "OGA"
@@ -341,12 +354,33 @@ class BestDynamicCache(CacheObj):
 
 
 class FTPL(CacheObj):
-    def __init__(self, cache_size, catalog_size, cache_init, eta=1.0):
+    def __init__(self, cache_size, catalog_size, cache_init, eta=None, sample_size=None):
         super().__init__(cache_size, catalog_size, cache_init)
         self.file_freq = np.ones(self.catalog_size)
-        self.eta = eta
+
+        if eta is None:
+            if sample_size is not None:
+                self.eta = np.sqrt(sample_size/cache_size)/(4*np.pi*np.log(catalog_size))
+            else:
+                self.eta = 1.0
+        else:
+            self.eta = eta
+        
         self.name = "FTPL"
         self.reset()
+
+    def get_ranking(self):
+        ranking = np.zeros(self.catalog_size)
+
+        cache_file_freq = self.file_freq[self.cache] 
+        cache_file_freq += self.eta*np.random.randn(cache_file_freq.size)
+        cache_sorted = self.cache[np.argsort(cache_file_freq)] # Most important files at the end
+
+        for i, c in enumerate(cache_sorted):
+            ranking[c] = i+1 # 1 for the least important and self.cache_size for the most important
+        
+        assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
+        return ranking
 
     def reset(self):
         super().reset()

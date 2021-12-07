@@ -2,7 +2,7 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .cache import CacheObj, LRU, LFU
+from .cache import CacheObj, LRU, LFU, OGA
 
 
 class ExpertCache(CacheObj):
@@ -362,6 +362,9 @@ class EvictLRU(EvictObj):
         assert(np.where(self.file_recency > 0)[0].size == self.cache_size)
 
 
+    def get_ranking(self):
+        return self.file_recency
+
     def ask_advice(self, request, cache):
         if request in cache:
             file2evict = None
@@ -388,6 +391,18 @@ class EvictLFU(EvictObj):
     def update(self, request):
         self.file_freq[request] += 1
 
+    def get_ranking(self):
+        ranking = np.zeros(self.catalog_size)
+
+        cache_file_freq = self.file_freq[self.cache]
+        cache_sorted = self.cache[np.argsort(cache_file_freq)] # Most important files at the end
+
+        for i, c in enumerate(cache_sorted):
+            ranking[c] = i+1 # 1 for the least important and self.cache_size for the most important
+        
+        assert np.sum(ranking) ==  np.sum(np.arange(1, self.cache_size+1))
+        return ranking
+
     def ask_advice(self, request, cache):
         # Update the internal values
         self.update(request)
@@ -400,7 +415,7 @@ class EvictLFU(EvictObj):
             cache_file_freq = self.file_freq[cache]
             cache_file_freq_min = np.min(cache_file_freq)
 
-            if self.file_freq[request] > cache_file_freq_min:
+            if self.file_freq[request] >= cache_file_freq_min:
                 # If the file request has a higher frequency than a file(s) in the cache
                 # Evict the file and replace the request
                 # If multiple file with the same low freq than choice a random file with low freq
@@ -442,6 +457,19 @@ class EvictFTPL(EvictObj):
                 file2evict = cache[np.random.choice(np.where(cache_file_freq == cache_file_freq_min)[0])]
                 file2add = request
         return file2evict, file2add
+
+
+class EvictOGA(EvictObj):
+    def __init__(self, catalog_size, cache_init):
+        super().__init__(catalog_size, cache_init)
+        self.reset()
+
+    def reset(self):
+        self.OGA = OGA(cache_size=self.cache_size, catalog_size=self.catalog_size)
+    
+    def update(self, request):
+        self.OGA.request(request)
+    
 
 
 

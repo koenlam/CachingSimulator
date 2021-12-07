@@ -9,17 +9,24 @@ from .timer import Timer
 
 
 
-def plot_comp(*caches, legend=True):
+def plot_expert_choices(expert_cache, expert_names):
+    t = np.arange(1, len(expert_cache.hits)+1)
+    plt.plot(t, expert_cache.expert_choices, ".")
+    plt.yticks(range(len(expert_names)), expert_names)
+    plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0), useMathText=True)
+    plt.xlabel("Time")
+
+def plot_comp(*caches, legend=True, legend_columns=1, legend_loc="best"):
     t = np.arange(1, len(caches[0].get_hitrate())+1)
     for cache in caches:
         plt.plot(t, cache.get_hitrate())
     
     plt.xlabel("Time")
-    plt.ylabel("Avg hits")
+    plt.ylabel("Hit Ratio")
 #     plt.ylim([0, 0.8])
     plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0), useMathText=True)
     if legend:
-        plt.legend([cache.get_name() for cache in caches])
+        plt.legend([cache.get_name() for cache in caches], ncol=legend_columns, loc=legend_loc)
 
 def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None, plot_hitrates=True):
     timer = Timer()
@@ -84,8 +91,8 @@ def simulate_trace(trace, cache_size, catalog_size, sample_size, cache_init=None
 
 def simulate_caches_parallel(caches, trace):
     """ Simulates in parallel using pathos multiprocessing
-        Doesn't update the original cache, e.g, the cache configuration
-        ONLY the hits are updated 
+        Doesn't update in-place unlike simulate_caches()
+        Therefore, return assignment is needed
     """
     import pathos.multiprocessing
     num_caches = len(caches)
@@ -99,9 +106,7 @@ def simulate_caches_parallel(caches, trace):
                 future.wait()
                 pbar.update(1)  
     
-    # Save hits into the cache objects
-    for cache, result in zip(caches, futures):
-        cache.hits = result.get()
+    return [future.get() for future in futures]
 
 
 def simulate_caches(caches, trace, separate_simulations=False):
@@ -119,3 +124,4 @@ def simulate_caches(caches, trace, separate_simulations=False):
             for request in tqdm(trace, total=len(trace)):
                 cache.request(request)
             print()
+    return caches

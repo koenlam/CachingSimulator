@@ -20,16 +20,17 @@ def get_figsize(columnwidth, wf=0.5, hf=(5.**0.5-1.0)/2.0):
     return [fig_width, fig_height]
 
 
-def set_fig_fullwidth():
+def set_fig_fullwidth(scale=1.0):
     """ Setup figure size for full width figures
         Scaling is not required, e.g., in Latex import without [width=\textwidth]
     """
-    figsize = get_figsize(COLUMNWIDTH, wf=1.0, hf=0.4)
+    figsize = get_figsize(COLUMNWIDTH, wf=1.0*scale, hf=0.4*scale)
     params = {'backend': 'ps',
-              'axes.labelsize': 10,
-              'legend.fontsize': 10,
-              'xtick.labelsize': 8,
-              'ytick.labelsize': 8,
+              'axes.labelsize': 10*scale,
+              'legend.fontsize': 8*scale,
+              'legend.labelspacing': 0.25,
+              'xtick.labelsize': 8*scale,
+              'ytick.labelsize': 8*scale,
               'figure.constrained_layout.use':True,
               'figure.figsize': figsize}
     matplotlib.rcParams.update(params)
@@ -38,7 +39,7 @@ def set_fig_halfwidth():
     """ Setup figure size for half width figures
         Scaling is required
     """
-    figsize = get_figsize(COLUMNWIDTH, wf=1.0, hf=1.0)
+    figsize = get_figsize(COLUMNWIDTH, wf=1.0, hf=0.8)
     params = {'backend': 'ps',
               'axes.labelsize': 20,
               'legend.fontsize': 16,
