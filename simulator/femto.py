@@ -66,7 +66,7 @@ class mLRU(FemtoObj):
                 z[idx] = min(np.where(self.caches[idx].cache == request)[
                             0].size, 1-np.sum(z))
 
-            hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
+        hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
 
         if lazy_flag == 0:
             cache_options = np.where(local_edges > 0)[0]
@@ -249,6 +249,55 @@ class DBSA(FemtoObj):
     def get_name(self):
         return "D-BSA"
 
+class FemtoDEC(FemtoObj):
+    def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges, expert_policies, mixing=True):
+        super().__init__(cache_sizes, catalog_size, caches_init, None, utilities, edges)
+        self.expert_policies = expert_policies
+        self.mixing = mixing
+        self.reset()
+
+
+    def init_caches(self):
+        self.caches = [RankingExperts(cache_size, self.catalog_size, cache_init, self.expert_policies, mixing=self.mixing) for cache_size, cache_init in zip(self.cache_size, self.caches_init)]
+       
+
+    def request(self, request, dest):
+        hit = np.zeros(self.num_user_locs)
+        local_edges = self.edges[dest, ]
+        z = np.zeros(self.num_cache, dtype=np.int)
+        lazy_flag = 0
+
+        for idx in self.utilities_sorted_idx[dest]:
+            if local_edges[idx] == 1: # Cache reachable
+                if self.caches[idx].request(request) is True:                      
+                    lazy_flag += 1
+
+
+                    z[idx] = min(np.where(self.caches[idx].cache == request)[
+                                0].size, 1-np.sum(z))
+                    break
+
+        hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
+
+
+        # if lazy_flag == 0:
+        #     for edge, cache in zip(local_edges, self.caches):
+        #         if edge == 1: # Cache reachable
+        #             cache.request(request)
+        # elif lazy_flag > 0:
+        #     updated = False
+        #     for i, zi in enumerate(z):
+        #         # Update the cache that is used for the request or the cache if a cache with a lower utility is used for the request
+        #         if zi > 0 or (updated and local_edges[i]): 
+        #             self.caches[i].request(request)
+        #             updated = True
+
+        self.hits.append(hit)
+        return hit
+
+    def get_name(self):
+        return "FemtoDEC"
+
 class FemtoDEC2(FemtoObj):
     def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges, expert_policies, mixing=True):
         super().__init__(cache_sizes, catalog_size, caches_init, None, utilities, edges)
@@ -290,3 +339,67 @@ class FemtoDEC2(FemtoObj):
 
     def get_name(self):
         return "FemtoDEC"
+
+
+
+class femtoBH(FemtoObj):
+    def __init__(self, cache_size, catalog_size, caches_init, utilities, edges, trace, destinations):
+        # Note: This is a hardcoded approximation of the best-in-hindsight
+        # Assumption utilities and edges are :
+        # utilities = np.array([
+        #     [1, 2, 100],
+        #     [1, 2, 100],
+        #     [1, 2, 100],
+        #     [1, 2, 100]
+        # ])
+        # edges = np.array([
+        #     [1, 1, 0],
+        #     [1, 1, 0],
+        #     [0, 1, 1],
+        #     [0, 1, 1]
+        # ]) # destinations x caches
+
+        # Also only 3 caches
+        # And
+
+        caches_init = [[],[],[]]
+        
+        # Array of cache idx where sorted desceding on the cache with the highest cumulative utility
+        caches_idx_sorted_utilities = np.argsort(np.sum(utilities, axis=0))[::-1] 
+        for i, cache_idx in enumerate(caches_idx_sorted_utilities):
+            object_count = np.zeros(catalog_size)
+            for request, dest in zip(trace, destinations):
+                if edges[dest, cache_idx] == 1:
+                    # If the request is already in a connect cache with a higher utility don't count the request
+                    for prev__cache_idx in caches_idx_sorted_utilities[:i]:
+                        if edges[dest, prev__cache_idx] == 1 and request in caches_init[prev__cache_idx]:
+                            break
+                    else:
+                        object_count[request] += 1
+            caches_init[cache_idx] = np.argsort(object_count)[-cache_size[cache_idx]:]
+        # print(caches_init)
+        # exit(0)
+
+
+
+        super().__init__(cache_size, catalog_size, caches_init, CacheStatic, utilities, edges)
+        self.reset()
+
+    def request(self, request, dest):
+        hit = np.zeros(self.num_user_locs)  
+        local_edges = self.edges[dest, ]
+        z = np.zeros(self.num_cache, dtype=np.int)
+
+        for idx in self.utilities_sorted_idx[dest]:
+            if local_edges[idx] == 1: # Cache reachable
+                if self.caches[idx].request(request):  
+                    z[idx] = 1
+                    break
+
+        hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
+
+        self.hits.append(hit)
+        return hit
+
+    def get_name(self):
+        return "~BH"
