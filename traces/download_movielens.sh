@@ -1,3 +1,10 @@
+#!/bin/bash
+
+if [ -d "traces" ]; then 
+    echo "Please run this script inside the traces directory"
+    exit 1
+
+fi
 
 echo "[+] Downloading MovieLens dataset"
 wget https://files.grouplens.org/datasets/movielens/ml-1m.zip
