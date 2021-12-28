@@ -6,7 +6,6 @@ from tqdm.auto import tqdm
 
 from .tools import convert2array
 
-DEFAULT_SWITCHING_COST = 0.5
 
 def init_cache(cache_size, catalog_size):
     """Initialize random cache"""
@@ -34,12 +33,10 @@ def gen_best_static(trace, cache_size):
 
 
 class CacheObj:
-    def __init__(self, cache_size, catalog_size, cache_init, switching_cost=DEFAULT_SWITCHING_COST, metric="hit"):
+    def __init__(self, cache_size, catalog_size, cache_init):
         self.cache_size = cache_size
         self.catalog_size = catalog_size
         self.cache_init = cache_init
-        self.switching_cost = switching_cost
-        self.metric = metric
 
         self.name = "CacheObj"
 
