@@ -7,8 +7,9 @@ from .cache import *
 
 
 class FemtoObj:
-    def __init__(self, cache_size, catalog_size, caches_init, cache_type, utilities, edges):
-        self.cache_size = cache_size
+    def __init__(self, cache_sizes, catalog_size, caches_init, cache_type, utilities, edges):
+        self.name = "FemtoObj"
+        self.cache_sizes = cache_sizes
         self.catalog_size = catalog_size
         self.caches_init = caches_init
         self.num_cache = edges.shape[1]
@@ -29,8 +30,15 @@ class FemtoObj:
 
     def init_caches(self):
         self.caches = [self.cache_type(
-            self.cache_size, self.catalog_size, cache_init) for cache_init in self.caches_init]
+            cache_size, self.catalog_size, cache_init) for cache_size, cache_init in zip(self.cache_sizes, self.caches_init)]
 
+
+    def simulate(self, trace, destinations):
+        N = len(trace)
+        for request, dest in tqdm(zip(trace, destinations), total=N):
+            self.request(request, dest)
+        # return self.hits
+        return self
 
     def get_cache(self):
         return [c.cache for c in self.caches]
@@ -44,12 +52,13 @@ class FemtoObj:
         self.hits = []
 
     def get_name(self):
-        return "FemtoObj"
+        return self.name
 
 
 class mLRU(FemtoObj):
-    def __init__(self, cache_size, catalog_size, caches_init, utilities, edges):
-        super().__init__(cache_size, catalog_size, caches_init, LRU, utilities, edges)
+    def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges):
+        super().__init__(cache_sizes, catalog_size, caches_init, LRU, utilities, edges)
+        self.name = "mLRU"
         self.reset()
 
     def request(self, request, dest):
@@ -81,13 +90,12 @@ class mLRU(FemtoObj):
         self.hits.append(hit)
         return hit
 
-    def get_name(self):
-        return "mLRU"
 
 
 class LazyLRU(FemtoObj):
-    def __init__(self, cache_size, catalog_size, caches_init, utilities, edges):
-        super().__init__(cache_size, catalog_size, caches_init, LRU, utilities, edges)
+    def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges):
+        super().__init__(cache_sizes, catalog_size, caches_init, LRU, utilities, edges)
+        self.name = "LazyLRU"
         self.reset()
 
     def request(self, request, dest):
@@ -118,9 +126,6 @@ class LazyLRU(FemtoObj):
         self.hits.append(hit)
         return hit
 
-    def get_name(self):
-        return "LazyLRU"
-
 
 class BSA(FemtoObj):
     def __init__(self, cache_sizes, catalog_size, sample_size, utilities, edges, caches_init=None):
@@ -142,6 +147,7 @@ class BSA(FemtoObj):
             caches_init = BSA_caches_init
 
         super().__init__(cache_sizes, catalog_size, caches_init, OGA, utilities, edges)
+        self.name = "BSA"
         self.sample_size = sample_size
 
         self.eta = np.sqrt(2*np.mean(cache_sizes) * self.num_cache / np.max(np.sum(edges, axis=0)) / sample_size ) / np.max(utilities)
@@ -150,7 +156,7 @@ class BSA(FemtoObj):
 
 
     def init_caches(self):
-        self.caches = [self.cache_type(c_size, self.catalog_size, self.sample_size, cache_init, self.eta) for c_size, cache_init in zip(self.cache_size, self.caches_init)]
+        self.caches = [self.cache_type(c_size, self.catalog_size, self.sample_size, cache_init, self.eta) for c_size, cache_init in zip(self.cache_sizes, self.caches_init)]
 
 
     def request(self, request, dest):
@@ -182,9 +188,6 @@ class BSA(FemtoObj):
         return hit
 
 
-    def get_name(self):
-        return "BSA"
-
 
 class DBSA(FemtoObj):
     def __init__(self, cache_sizes, catalog_size, sample_size, utilities, edges, caches_init=None):
@@ -206,15 +209,16 @@ class DBSA(FemtoObj):
             caches_init = BSA_caches_init
 
         super().__init__(cache_sizes, catalog_size, caches_init, DiscreteOGA, utilities, edges)
-        self.sample_size = sample_size
+        self.name = "D-BSA"
 
+        self.sample_size = sample_size
         self.eta = np.sqrt(2*np.mean(cache_sizes) * self.num_cache / np.max(np.sum(edges, axis=0)) / sample_size ) / np.max(utilities)
 
         self.reset()
 
 
     def init_caches(self):
-        self.caches = [self.cache_type(c_size, self.catalog_size, self.sample_size, cache_init, self.eta) for c_size, cache_init in zip(self.cache_size, self.caches_init)]
+        self.caches = [self.cache_type(c_size, self.catalog_size, self.sample_size, cache_init, self.eta) for c_size, cache_init in zip(self.cache_sizes, self.caches_init)]
 
 
     def request(self, request, dest):
@@ -231,7 +235,7 @@ class DBSA(FemtoObj):
         hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
 
         # Find subgradient
-        # request_cache_allocation = np.array([cache.OGA.get_cache()[request] for cache in self.caches])
+        request_cache_allocation = np.array([cache.OGA.get_cache()[request] for cache in self.caches])
         c = np.insert(request_cache_allocation, 0, 1) # Insert value 1 as allocation for the file for MBS
         A = np.concatenate((-np.ones((self.num_cache, 1)), -np.eye(self.num_cache)), axis=1)
         b = -self.utilities[dest,] * local_edges
@@ -246,19 +250,18 @@ class DBSA(FemtoObj):
         return hit
 
 
-    def get_name(self):
-        return "D-BSA"
 
 class FemtoDEC(FemtoObj):
     def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges, expert_policies, mixing=True):
         super().__init__(cache_sizes, catalog_size, caches_init, None, utilities, edges)
+        self.name = "MultiDEC"
         self.expert_policies = expert_policies
         self.mixing = mixing
         self.reset()
 
 
     def init_caches(self):
-        self.caches = [RankingExperts(cache_size, self.catalog_size, cache_init, self.expert_policies, mixing=self.mixing) for cache_size, cache_init in zip(self.cache_size, self.caches_init)]
+        self.caches = [RankingExperts(cache_size, self.catalog_size, cache_init, self.expert_policies, mixing=self.mixing) for cache_size, cache_init in zip(self.cache_sizes, self.caches_init)]
        
 
     def request(self, request, dest):
@@ -279,24 +282,9 @@ class FemtoDEC(FemtoObj):
 
         hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
 
-
-        # if lazy_flag == 0:
-        #     for edge, cache in zip(local_edges, self.caches):
-        #         if edge == 1: # Cache reachable
-        #             cache.request(request)
-        # elif lazy_flag > 0:
-        #     updated = False
-        #     for i, zi in enumerate(z):
-        #         # Update the cache that is used for the request or the cache if a cache with a lower utility is used for the request
-        #         if zi > 0 or (updated and local_edges[i]): 
-        #             self.caches[i].request(request)
-        #             updated = True
-
         self.hits.append(hit)
         return hit
 
-    def get_name(self):
-        return "FemtoDEC"
 
 class FemtoDEC2(FemtoObj):
     def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges, expert_policies, mixing=True):
@@ -307,7 +295,7 @@ class FemtoDEC2(FemtoObj):
 
 
     def init_caches(self):
-        self.caches = [RankingExperts(cache_size, self.catalog_size, cache_init, self.expert_policies, mixing=self.mixing) for cache_size, cache_init in zip(self.cache_size, self.caches_init)]
+        self.caches = [RankingExperts(cache_size, self.catalog_size, cache_init, self.expert_policies, mixing=self.mixing) for cache_size, cache_init in zip(self.cache_sizes, self.caches_init)]
         
 
     def request(self, request, dest):
@@ -343,7 +331,7 @@ class FemtoDEC2(FemtoObj):
 
 
 class femtoBH(FemtoObj):
-    def __init__(self, cache_size, catalog_size, caches_init, utilities, edges, trace, destinations):
+    def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges, trace, destinations):
         # Note: This is a hardcoded approximation of the best-in-hindsight
         # Assumption utilities and edges are :
         # utilities = np.array([
@@ -362,7 +350,7 @@ class femtoBH(FemtoObj):
         # Also only 3 caches
         # And
 
-        caches_init = [[],[],[]]
+        caches_init = [[] for _ in range(len(cache_sizes))]
         
         # Array of cache idx where sorted desceding on the cache with the highest cumulative utility
         caches_idx_sorted_utilities = np.argsort(np.sum(utilities, axis=0))[::-1] 
@@ -399,6 +387,3 @@ class femtoBH(FemtoObj):
 
         self.hits.append(hit)
         return hit
-
-    def get_name(self):
-        return "~BH"
