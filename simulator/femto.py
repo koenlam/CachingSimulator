@@ -286,48 +286,6 @@ class FemtoDEC(FemtoObj):
         return hit
 
 
-class FemtoDEC2(FemtoObj):
-    def __init__(self, cache_sizes, catalog_size, caches_init, utilities, edges, expert_policies, mixing=True):
-        super().__init__(cache_sizes, catalog_size, caches_init, None, utilities, edges)
-        self.expert_policies = expert_policies
-        self.mixing = mixing
-        self.reset()
-
-
-    def init_caches(self):
-        self.caches = [RankingExperts(cache_size, self.catalog_size, cache_init, self.expert_policies, mixing=self.mixing) for cache_size, cache_init in zip(self.cache_sizes, self.caches_init)]
-        
-
-    def request(self, request, dest):
-        hit = np.zeros(self.num_user_locs)
-        local_edges = self.edges[dest, ]
-        z = np.zeros(self.num_cache, dtype=np.float)
-
-        request_cache_allocation = np.array([request in cache.get_cache() for cache in self.caches])
-
-        for idx in self.utilities_sorted_idx[dest]:
-            if local_edges[idx] == 1: # Cache reachable
-                z[idx] = min(request_cache_allocation[idx], 1-np.sum(z))
-
-        hit[dest] = np.dot(z, local_edges*self.utilities[dest, ])
-
-        # Find subgradient
-        c = np.insert(request_cache_allocation, 0, 1) # Insert value 1 as allocation for the file for MBS
-        A = np.concatenate((-np.ones((self.num_cache, 1)), -np.eye(self.num_cache)), axis=1)
-        b = -self.utilities[dest,] * local_edges
-        x = optimize.linprog(c=c, A_ub=A, b_ub=b, method="revised simplex").x # By default the bounds are (0, None), and thus the decision variables are nonnegative
-        g = x[1:] # Exclude MBS
-        # Update
-        for subgradient, cache in zip(g, self.caches):
-            if subgradient > 0.0001:
-                cache.request(request)
-
-        self.hits.append(hit)
-        return hit
-
-    def get_name(self):
-        return "FemtoDEC"
-
 
 
 class femtoBH(FemtoObj):
