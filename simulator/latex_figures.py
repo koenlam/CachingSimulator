@@ -44,9 +44,25 @@ def set_fig_halfwidth():
               'axes.labelsize': 20,
               'legend.fontsize': 16,
               'legend.labelspacing': 0.25,
-            #   'legend.loc': 'lower right',
               'xtick.labelsize': 16,
               'ytick.labelsize': 16,
+              'figure.constrained_layout.use':True,
+              'figure.figsize': figsize}
+    matplotlib.rcParams.update(params)
+
+
+def set_fig_onethirdwidth():
+    """ Setup figure size for one third width figures
+        Scaling is required
+    """
+    scale = 1.25
+    figsize = get_figsize(COLUMNWIDTH, wf=0.8, hf=1.0)
+    params = {'backend': 'ps',
+              'axes.labelsize': 20*scale,
+              'legend.fontsize': 16*scale,
+              'legend.labelspacing': 0.25*scale,
+              'xtick.labelsize': 16*scale,
+              'ytick.labelsize': 16*scale,
               'figure.constrained_layout.use':True,
               'figure.figsize': figsize}
     matplotlib.rcParams.update(params)

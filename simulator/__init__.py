@@ -7,3 +7,4 @@ from .femto import *
 from .experts import *
 from .experts2 import *
 from .latex_figures import *
+from .tools import *

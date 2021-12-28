@@ -376,13 +376,12 @@ class femtoBH(FemtoObj):
                             break
                     else:
                         object_count[request] += 1
-            caches_init[cache_idx] = np.argsort(object_count)[-cache_size[cache_idx]:]
-        # print(caches_init)
-        # exit(0)
+            caches_init[cache_idx] = np.argsort(object_count)[-cache_sizes[cache_idx]:]
 
 
 
-        super().__init__(cache_size, catalog_size, caches_init, CacheStatic, utilities, edges)
+        super().__init__(cache_sizes, catalog_size, caches_init, CacheStatic, utilities, edges)
+        self.name = "FemtoStatic"
         self.reset()
 
     def request(self, request, dest):
