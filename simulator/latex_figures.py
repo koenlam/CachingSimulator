@@ -20,9 +20,9 @@ def get_figsize(columnwidth, wf=0.5, hf=(5.**0.5-1.0)/2.0):
     return [fig_width, fig_height]
 
 
-def set_fig_fullwidth(scale=1.0):
+def set_fig_fullwidth(scale=1.5):
     """ Setup figure size for full width figures
-        Scaling is not required, e.g., in Latex import without [width=\textwidth]
+        Scaling is not required, e.g., in Latex import without [width=\textwidth] if scale=1.0
     """
     figsize = get_figsize(COLUMNWIDTH, wf=1.0*scale, hf=0.4*scale)
     params = {'backend': 'ps',
