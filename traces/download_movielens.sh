@@ -1,11 +1,15 @@
 
-echo "[+] Downloading Movielens dataset"
+echo "[+] Downloading MovieLens dataset"
 wget https://files.grouplens.org/datasets/movielens/ml-1m.zip
 
-echo "[+] Unzipping Movielens dataset"
+echo "[+] Unzipping MovieLens dataset"
 unzip ml-1m.zip
 
-echo "[+] Renaming Movielens dataset"
+echo "[+] Moving MovieLens dataset"
 mv ml-1m/ratings.dat MovieLens1M_ratings.dat
 
-echo "[+] Finished downloading the Movielens dataset"
+echo "[-] Removing the leftover files"
+rm -r ml-1m
+rm ml-1m.zip
+
+echo "[+] Finished downloading the MovieLens dataset"
