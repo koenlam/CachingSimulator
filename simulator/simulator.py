@@ -9,14 +9,14 @@ def plot_expert_choices(expert_cache, expert_names):
     plt.plot(t, expert_cache.expert_choices, ".")
     plt.yticks(range(len(expert_names)), expert_names)
     plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0), useMathText=True)
-    plt.xlabel("Time")
+    plt.xlabel("Time Step")
 
 def plot_comp(*caches, legend=True, legend_columns=1, legend_loc="best", ylabel="Hit Ratio"):
     t = np.arange(1, len(caches[0].get_hitrate())+1)
     for cache in caches:
         plt.plot(t, cache.get_hitrate())
     
-    plt.xlabel("Time")
+    plt.xlabel("Time Step")
     plt.ylabel(ylabel)
 #     plt.ylim([0, 0.8])
     plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0), useMathText=True)

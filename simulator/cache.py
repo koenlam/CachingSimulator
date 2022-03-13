@@ -265,7 +265,7 @@ class DiscreteOGA(CacheObj):
         super().__init__(cache_size, catalog_size, cache_init)
         self.OGA = OGA(cache_size, catalog_size, sample_size, cache_init=cache_init, eta0=eta0)
 
-        self.name = "Discrete OGA"
+        self.name = "Integral OGA"
         self.reset()
 
     def get_ranking(self):

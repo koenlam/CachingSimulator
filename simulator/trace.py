@@ -179,7 +179,8 @@ def get_movielens_trace():
         raise FileNotFoundError('MovieLens dataset not downloaded. \
 Please run "download_movielens.sh" to download the dataset. \
 Alternatively download the dataset manually and rename "ratings.dat" to "MovieLens1M_ratings.dat"') from None
-    return np.array(movielens_data["MovieID"], dtype=int)
+    return np.array(movielens_data["MovieID"], dtype=int)[np.argsort(movielens_data["Timestamp"])]
+
 
 
 

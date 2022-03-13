@@ -40,7 +40,7 @@ class VotingExperts(CacheObj):
             expert_names.append(expert.get_name())
             plt.plot(t, past_weights[:,i], '.')
         plt.legend(expert_names)
-        plt.xlabel("Time")
+        plt.xlabel("Time Step")
         plt.ylabel("Weights")
         
 
@@ -131,7 +131,7 @@ class RankingExperts(CacheObj):
             raise ValueError("{self.alg} not valid. Valid algorithms: ('WM', 'RWM', 'SD')")
 
     
-    def plot_expert_weights(self):
+    def plot_expert_weights(self, loc="center right"):
         t = np.arange(1, len(self.past_weights)+1)
 
         past_weights = np.array(self.past_weights)
@@ -140,9 +140,9 @@ class RankingExperts(CacheObj):
         for i, expert in enumerate(self.experts):
             expert_names.append(expert.get_name())
             plt.plot(t, past_weights[:,i], '.')
-        plt.legend(expert_names)
+        plt.legend(expert_names, loc=loc)
         plt.ticklabel_format(axis="x", style="sci", scilimits=(0,0), useMathText=True)
-        plt.xlabel("Time")
+        plt.xlabel("Time Step")
         plt.ylabel("Weights")
 
 
@@ -384,7 +384,7 @@ class RankFTPL(RankObj):
 class RankOGA(RankObj):
     def __init__(self, cache_size, catalog_size, cache_init, sample_size=None):
         super().__init__(cache_size, catalog_size, cache_init)
-        self.name = "Discrete OGA"
+        self.name = "Integral OGA"
         self.sample_size = sample_size
         self.reset()
 
