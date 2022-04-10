@@ -55,10 +55,10 @@ def set_fig_onethirdwidth():
     """ Setup figure size for one third width figures
         Scaling is required
     """
-    scale = 1.25
+    scale = 1.1
     figsize = get_figsize(COLUMNWIDTH, wf=0.8, hf=1.0)
     params = {'backend': 'ps',
-              'axes.labelsize': 20*scale,
+              'axes.labelsize': 18*scale,
               'legend.fontsize': 16*scale,
               'legend.labelspacing': 0.25*scale,
               'xtick.labelsize': 16*scale,
